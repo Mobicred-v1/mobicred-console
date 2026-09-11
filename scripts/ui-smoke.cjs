@@ -10,18 +10,22 @@ const sections = ['overview','inbox','customers','payments','credit','partners',
   page.on('pageerror', (error) => errors.push(error.message));
   async function visit(path, port = 3006) {
     const response = await page.goto(`http://localhost:${port}${path}`, { waitUntil: 'networkidle' });
-    // Next.js streams its loading boundary and page concurrently. Scope assertions to
-    // the actual workspace instead of racing an unrelated loading-state heading.
     await page.locator('#main-content .page-heading h1').waitFor({ state: 'visible' });
     return response;
+  }
+  async function noOverflow(label) {
+    const metrics = await page.evaluate(() => ({
+      viewport: innerWidth, document: document.documentElement.scrollWidth,
+      offenders: [...document.querySelectorAll('main, .overview-grid, .stack, .panel, .topbar, .context-bar')].map((el) => ({ name: el.className, right: el.getBoundingClientRect().right })).filter((el) => el.right > innerWidth + 1),
+    }));
+    assert.ok(metrics.document <= metrics.viewport + 1, `${label}: ${JSON.stringify(metrics)}`);
   }
   try {
     for (const section of sections) {
       const response = await visit(`/preview/${section}`);
       assert.equal(response.status(), 200, section);
       assert.ok(await page.getByText('Synthetic data only · no production actions', { exact: true }).isVisible());
-      assert.ok((await page.locator('#main-content .page-heading h1').innerText()).length > 0);
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${section}: desktop overflow`);
+      await noOverflow(`${section}: desktop`);
     }
     await visit('/preview/overview');
     await page.screenshot({ path: 'artifacts/overview-desktop.png', fullPage: true });
@@ -49,8 +53,11 @@ const sections = ['overview','inbox','customers','payments','credit','partners',
     await page.getByRole('dialog').getByText('Synthetic reconciliation test', { exact: true }).first().waitFor();
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
+    for (const section of sections) {
+      await visit(`/preview/${section}`);
+      await noOverflow(`${section}: mobile`);
+    }
     await visit('/preview/overview');
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'mobile overflow');
     await page.screenshot({ path: 'artifacts/overview-mobile.png', fullPage: true });
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Partners', exact: true }).click();
@@ -62,6 +69,10 @@ const sections = ['overview','inbox','customers','payments','credit','partners',
     assert.equal(await page.getByText('Amina K.', { exact: true }).count(), 0, 'production leaked preview records');
     assert.ok(await page.getByRole('button', { name: 'New investigation' }).isDisabled());
     assert.deepEqual(errors, [], 'browser exceptions');
-    console.log('PASS: 14 workspaces, search, filters, record dialogs, preview case form, mobile navigation and production preview denial.');
+    console.log('PASS: all 14 desktop and mobile workspaces, search, filters, record dialogs, preview case form, mobile navigation and production preview denial.');
+  } catch (error) {
+    await page.screenshot({ path: 'artifacts/preview-failure.png', fullPage: true }).catch(() => {});
+    console.error('Page at failure:', page.url());
+    throw error;
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });
