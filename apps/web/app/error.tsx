@@ -1,0 +1,2 @@
+'use client';
+export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <main className="auth-page"><section className="auth-card"><div className="eyebrow">Workspace unavailable</div><h1>We could not load this view.</h1><p>No cached preview records or simulated statuses have been substituted. Retry or contact your console administrator.</p><button className="button primary" onClick={reset}>Try again</button></section></main>; }
