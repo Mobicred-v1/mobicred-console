@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsOrder, IsNull } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InvestigationCaseMapper } from '@modules/investigations/infrastructure/mappers/investigation-case.mapper';
 import { InvestigationCaseOrmEntity } from '@modules/investigations/infrastructure/orm-entities/investigation-case.orm-entity';
 import { InvestigationCaseEntity } from '@modules/investigations/application/domain/entities/investigation-case.entity';
@@ -32,7 +33,9 @@ export class InvestigationCaseRepository {
   async update(id: string, entity: InvestigationCaseEntity, tenantId?: string): Promise<InvestigationCaseEntity> {
     const tenant = scope(tenantId); const orm = this.mapper.toOrmEntity(entity);
     if (orm.tenant_id !== tenant) throw new ForbiddenException('Tenant reassignment is forbidden');
-    const result = await this.repository.update({ id, tenant_id: tenant, deletedAt: IsNull() }, orm);
+    // TypeORM's recursive SQL-expression type does not model opaque JSONB values.
+    // The mapper supplies an ORM-shaped partial; scope stays in the UPDATE predicate.
+    const result = await this.repository.update({ id, tenant_id: tenant, deletedAt: IsNull() }, orm as QueryDeepPartialEntity<InvestigationCaseOrmEntity>);
     if (!result.affected) throw new NotFoundException('Case not found');
     return entity;
   }
