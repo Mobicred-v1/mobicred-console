@@ -59,7 +59,7 @@ jobs:
       - name: Install isolated browser runner
         run: |
           npm install --prefix /tmp/console-browser --no-save --ignore-scripts playwright@1.58.2
-          /tmp/console-browser/node_modules/.bin/playwright install --with-deps chromium
+          /tmp/console-browser/node_modules/.bin/playwright install --with-deps chromium > /tmp/browser-install.log 2>&1
       - name: Start actual built servers and isolated identity provider
         run: |
           node tests/fixtures/identity-provider.cjs > /tmp/console-idp.log 2>&1 &
@@ -72,6 +72,8 @@ jobs:
           done
           cat /tmp/console-idp.log /tmp/console-api.log /tmp/console-web.log
           exit 1
+      - name: Isolated session transport check
+        run: node tests/fixtures/session-preflight.cjs
       - name: Authenticated browser journey
         run: NODE_PATH=/tmp/console-browser/node_modules node scripts/authenticated-smoke.cjs
       - name: Failure diagnostics
