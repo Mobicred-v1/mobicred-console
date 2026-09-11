@@ -16,8 +16,12 @@ const sections = ['overview','inbox','customers','payments','credit','partners',
   async function noOverflow(label) {
     const metrics = await page.evaluate(() => ({
       viewport: innerWidth, document: document.documentElement.scrollWidth,
-      offenders: [...document.querySelectorAll('main, .overview-grid, .stack, .panel, .topbar, .context-bar')].map((el) => ({ name: el.className, right: el.getBoundingClientRect().right })).filter((el) => el.right > innerWidth + 1),
+      offenders: [...document.querySelectorAll('*')].map((el) => {
+        const rect = el.getBoundingClientRect(); const style = getComputedStyle(el);
+        return { tag: el.tagName, name: typeof el.className === 'string' ? el.className : 'svg', left: rect.left, right: rect.right, width: rect.width, scroll: el.scrollWidth, overflow: style.overflow, position: style.position, hidden: el.hidden, text: el.childElementCount ? '' : el.textContent.slice(0, 60) };
+      }).filter((el) => el.right > innerWidth + 1).slice(0, 80),
     }));
+    if (metrics.document > metrics.viewport + 1) fs.writeFileSync('artifacts/layout-diagnostics.json', JSON.stringify(metrics, null, 2));
     assert.ok(metrics.document <= metrics.viewport + 1, `${label}: ${JSON.stringify(metrics)}`);
   }
   try {
