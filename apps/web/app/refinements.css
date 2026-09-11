@@ -1,0 +1,6 @@
+/* Grid/flex children must shrink before their data tables scroll internally. */
+.stack,.overview-grid>*,.bottom-grid>*,.cards-grid>*,.page-heading>div,.drawer-header>div{min-width:0}
+.table-scroll{max-width:100%}
+.drawer-header>div,.detail-field dd{overflow-wrap:anywhere}
+@media(max-width:1000px){.overview-grid{grid-template-columns:minmax(0,1fr)}.overview-grid>.stack{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.overview-grid>.stack{display:flex}.bottom-grid,.cards-grid{grid-template-columns:minmax(0,1fr)}.search-trigger{min-width:0}.search-trigger span{min-width:0;text-overflow:ellipsis}.context-left{min-width:0;flex-wrap:wrap}.panel-header>.text-link{flex-shrink:0}}
