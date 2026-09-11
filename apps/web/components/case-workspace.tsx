@@ -65,11 +65,11 @@ function NewCaseDialog({ close, saved }: { close: () => void; saved: (id: string
     } catch (err) { setError(err instanceof Error ? err.message : 'The command result is unconfirmed.'); }
     finally { setBusy(false); }
   }
-  return <Modal title="New investigation" close={close}><form className="modal-body" onSubmit={submit}>
-    <label className="form-field">Case title<input name="title" minLength={5} maxLength={120} required placeholder="What needs investigating?" /></label>
-    <div className="detail-grid"><label className="form-field">Category<select name="kind"><option value="payment">Payment</option><option value="customer">Customer</option><option value="credit">Credit</option><option value="partner">Partner</option></select></label><label className="form-field">Severity<select name="severity"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select></label></div>
-    <label className="form-field">Customer reference <span className="muted">(optional)</span><input name="customerRef" maxLength={96} pattern="[A-Za-z0-9:_-]+" placeholder="Internal reference, not a phone number" /></label>
-    <label className="form-field">Reason & context<textarea name="reason" minLength={10} maxLength={1000} required placeholder="Describe the observed issue. Never include passwords or credentials." /></label>
+  return <Modal title="New investigation" close={() => { if (!busy) close(); }}><form className="modal-body" onSubmit={submit}>
+    <label className="form-field">Case title<input name="title" minLength={5} maxLength={120} required placeholder="What needs investigating?" disabled={busy} /></label>
+    <div className="detail-grid"><label className="form-field">Category<select name="kind" aria-label="Category" disabled={busy}><option value="payment">Payment</option><option value="customer">Customer</option><option value="credit">Credit</option><option value="partner">Partner</option></select></label><label className="form-field">Severity<select name="severity" aria-label="Severity" disabled={busy}><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select></label></div>
+    <label className="form-field">Customer reference <span className="muted">(optional)</span><input name="customerRef" maxLength={96} pattern="[A-Za-z0-9:_-]+" placeholder="Internal reference, not a phone number" disabled={busy} /></label>
+    <label className="form-field">Reason & context<textarea name="reason" minLength={10} maxLength={1000} required placeholder="Describe the observed issue. Never include passwords or credentials." disabled={busy} /></label>
     {error && <div className="notice warning" role="alert">{error}</div>}
     <p className="legal-note">The verified staff identity and tenant are assigned by the server. The case, initial note, audit event and idempotency receipt commit atomically.</p>
     <div className="modal-actions"><button className="button" type="button" onClick={close} disabled={busy}>Cancel</button><button className="button primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Create investigation'}</button></div>
@@ -95,16 +95,16 @@ function LiveCaseDetail({ record, canWrite, close, saved }: { record: ConsoleRec
     catch (err) { setError(err instanceof Error ? err.message : 'The command result is unconfirmed.'); }
     finally { setBusy(false); }
   }
-  return <Modal title={record.title} close={close} drawer><div className="drawer-body">
+  return <Modal title={record.title} close={() => { if (!busy) close(); }} drawer><div className="drawer-body">
     <div className="row-line" style={{ marginBottom: 20 }}><span className="mono">{record.id}</span><Badge tone={record.tone}>{record.status}</Badge></div>
     <dl className="detail-grid">{Object.entries(record.fields).map(([label, value]) => <div className="detail-field" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     {record.owners?.length ? <section className="panel" style={{ marginBottom: 22 }}><div className="panel-header"><h2>Linked owner availability</h2></div>{record.owners.map((owner) => <div className="owner-row" key={owner.owner}><strong>{owner.owner}</strong><span>{owner.status}</span><small>{owner.state} · {formatTime(owner.observedAt)}</small></div>)}</section> : <div className="notice"><Icon name="info" size={16} /><p>No linked customer reference or verified owner observation is attached to this case.</p></div>}
     <h2>Investigation notes</h2><p className="legal-note">Latest 100 notes. Notes are append-only; corrections are added as new notes.</p>
     <ol className="timeline">{record.timeline?.map((note, index) => <li key={index}><strong>{note.title}</strong><p style={{ whiteSpace: 'pre-wrap' }}>{note.detail}</p><small>{formatTime(note.time)}</small></li>)}</ol>
     <section className="panel"><div className="panel-header"><h2>Case commands</h2><Badge>{canWrite ? `Version ${version}` : 'Read-only role'}</Badge></div><form className="panel-body" onSubmit={submit}>
-      <label className="form-field">Action<select value={action} onChange={(event) => setAction(event.target.value)} disabled={!canWrite || busy}><option value="add_note">Add an investigation note</option><option value="assign_to_me">Assign this case to me</option><option value="set_status">Change case status</option></select></label>
+      <label className="form-field">Action<select aria-label="Action" value={action} onChange={(event) => setAction(event.target.value)} disabled={!canWrite || busy}><option value="add_note">Add an investigation note</option><option value="assign_to_me">Assign this case to me</option><option value="set_status">Change case status</option></select></label>
       {action === 'add_note' && <label className="form-field">Note<textarea name="note" minLength={1} maxLength={2000} required disabled={!canWrite || busy} /></label>}
-      {action === 'set_status' && <label className="form-field">New status<select name="status" required disabled={!canWrite || busy}>{(['open', 'waiting', 'resolved'] as const).filter((status) => status !== record.status && !(record.status === 'resolved' && status === 'waiting')).map((status) => <option key={status}>{status}</option>)}</select></label>}
+      {action === 'set_status' && <label className="form-field">New status<select name="status" aria-label="New status" required disabled={!canWrite || busy}>{(['open', 'waiting', 'resolved'] as const).filter((status) => status !== record.status && !(record.status === 'resolved' && status === 'waiting')).map((status) => <option key={status}>{status}</option>)}</select></label>}
       <label className="form-field">Reason<textarea name="reason" minLength={10} maxLength={1000} required disabled={!canWrite || busy} placeholder="Explain why this case change is needed." /></label>
       {error && <div className="notice warning" role="alert">{error}</div>}
       <p className="legal-note">The service checks your write role and current case version. A stale version returns a conflict rather than overwriting someone else’s work.</p>
