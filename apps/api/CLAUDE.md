@@ -1,0 +1,209 @@
+# console-api - AI Assistant Context
+
+This is a NestJS project using Domain-Driven Design (DDD) patterns generated with `nestjs-ddd-cli`.
+
+## Project Structure
+
+```
+src/
+├── modules/                    # Feature modules (bounded contexts)
+│   └── [feature-name]/
+│       ├── [feature].module.ts # NestJS module
+│       ├── application/        # Application layer
+│       │   ├── commands/       # CQRS commands (writes)
+│       │   ├── queries/        # CQRS queries (reads)
+│       │   ├── controllers/    # HTTP controllers
+│       │   ├── dto/            # Data transfer objects
+│       │   │   ├── requests/   # Input DTOs
+│       │   │   └── responses/  # Output DTOs
+│       │   └── domain/
+│       │       ├── entities/   # Domain entities
+│       │       ├── events/     # Domain events
+│       │       ├── services/   # Domain services
+│       │       └── usecases/   # Business logic
+│       └── infrastructure/     # Infrastructure layer
+│           ├── repositories/   # Data access
+│           ├── orm-entities/   # Database schemas
+│           └── mappers/        # Entity mapping
+├── shared/                     # Shared utilities
+└── migrations/                 # Database migrations
+```
+
+## CLI Commands
+
+Generate new features using the DDD CLI:
+
+```bash
+# Apply the standard reusable baseline for platform services
+ddd recipe service-foundation --install-deps
+
+# Generate complete CRUD scaffolding with fields
+ddd scaffold User -m users --fields "name:string email:string:unique age:number:optional"
+
+# Exact financial values, authenticated scope, and no generic deletion
+ddd scaffold Invoice -m billing --fields "amount:money tenantId:uuid:serverOwned" --no-delete
+
+# Generate individual components
+ddd generate module [name]
+ddd generate entity [name] -m [module]
+ddd generate usecase [name] -m [module]
+ddd generate service [name] -m [module]
+ddd generate event [name] -m [module]
+ddd generate query [name] -m [module]
+```
+
+### Financial-safe scaffold fields
+
+- Use `money` for exact financial decimals. It persists as decimal/Prisma Decimal
+  while domain, TypeORM, request, and response properties are TypeScript `string`
+  with decimal-string validation.
+- Add `serverOwned` (or its `internal` alias) to tenant, organization, book, store,
+  or other fields supplied by trusted application context. These fields are not
+  emitted in create/update request DTOs or request mass-assignment paths.
+- A create command with server-owned fields accepts them as its second argument.
+  Resolve them from authenticated guards/decorators/services; never copy them from
+  the request body. The generated use case fails closed until they are supplied.
+- Pass `--no-delete`, or set `.dddrc.json` `features.delete` to `false`, when an
+  aggregate must not expose a generic deletion route, command/use case, or
+  repository deletion method.
+
+## Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Files | kebab-case | `create-user.command.ts` |
+| Classes | PascalCase | `CreateUserCommand` |
+| Database tables | snake_case | `users` |
+| DTO properties | camelCase | `userName` |
+| Domain properties | camelCase | `userName` |
+
+## Architecture Rules
+
+1. **Dependencies flow inward**: Infrastructure → Application → Domain
+2. **Domain layer is pure**: No framework dependencies, just business logic
+3. **CQRS pattern**: Commands for writes, Queries for reads
+4. **Repository pattern**: Abstract data access behind interfaces
+5. **Mapper pattern**: Convert between domain and infrastructure entities
+6. **Recipe first**: Repeated platform behavior belongs in a `ddd recipe` or `.dddrc.json` option before copying custom implementation into another service
+7. **Canonical contracts**: Shared data shapes, value objects, environment keys, and integration adapters must have one canonical source and one generated/reused implementation path
+
+## Reusable Platform Baseline
+
+For new platform services, start with:
+
+```bash
+ddd recipe service-foundation --install-deps
+```
+
+This applies the reusable baseline for environment validation, health endpoints, API versioning, rate limiting, and filtering. If the same setup is needed in a second service, extend the CLI recipe instead of re-implementing it locally.
+
+For durable cross-service events, use:
+
+```bash
+ddd recipe event-backbone --install-deps
+```
+
+This applies the canonical Postgres event store/outbox source of truth with a Pulsar transport relay. Do not create new RabbitMQ/Kafka/Pulsar variants unless the platform decision changes.
+
+For human-readable operational references, use:
+
+```bash
+ddd recipe business-reference-identifiers
+```
+
+Keep UUID/internal IDs canonical; meaningful references are sidecar metadata for support, reconciliation, receipts, partner files, logs, and dashboards.
+
+## Common Patterns
+
+### Creating a new entity
+
+```typescript
+// Domain entity (pure business logic)
+export class User {
+  constructor(private readonly props: UserProps) {}
+
+  get name(): string { return this.props.name; }
+
+  changeName(newName: string): void {
+    // Business rule validation
+    if (!newName) throw new Error('Name required');
+    this.props.name = newName;
+  }
+}
+```
+
+### Creating a use case
+
+```typescript
+@Injectable()
+export class CreateUserUseCase {
+  constructor(private readonly repository: UserRepository) {}
+
+  async execute(dto: CreateUserDto): Promise<UserResponseDto> {
+    const user = new User(dto);
+    const saved = await this.repository.create(user);
+    return this.mapper.toResponseDto(saved);
+  }
+}
+```
+
+### Adding a new field to an existing entity
+
+1. Update domain entity props interface
+2. Update ORM entity with @Column decorator
+3. Update create/update DTOs with validators
+4. Update response DTO
+5. Update mapper methods
+6. Create migration for database
+
+## API Conventions
+
+All APIs follow RESTful conventions:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/entities` | List with pagination |
+| GET | `/entities/:id` | Get single entity |
+| POST | `/entities` | Create new entity |
+| PUT | `/entities/:id` | Update entity |
+| DELETE | `/entities/:id` | Soft delete entity (omitted when deletion is disabled) |
+
+### Pagination
+
+```typescript
+GET /entities?page=1&limit=10&sortBy=createdAt&sortOrder=DESC
+```
+
+### Standard Response Format
+
+```json
+{
+  "items": [...],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+## Configuration
+
+Project configuration is in `.dddrc.json`:
+
+```json
+{
+  "orm": "typeorm",
+  "database": "postgres",
+  "features": {
+    "swagger": true,
+    "pagination": true,
+    "delete": true,
+    "softDelete": true,
+    "hardDelete": false
+  }
+}
+```

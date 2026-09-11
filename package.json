@@ -1,0 +1,12 @@
+{
+  "name": "mobicred-console",
+  "private": true,
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "bun --filter console-api start:dev",
+    "dev:web": "bun --filter console-web dev",
+    "build:api": "bun --filter console-api build",
+    "build:web": "bun --filter console-web build",
+    "test:api": "bun --filter console-api test"
+  }
+}

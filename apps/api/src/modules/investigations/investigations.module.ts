@@ -1,0 +1,49 @@
+import { Module } from "@nestjs/common";
+import { CqrsModule } from "@nestjs/cqrs";
+import { TypeOrmModule } from "@nestjs/typeorm";
+
+// Infrastructure
+import { OrmEntities } from "@modules/investigations/infrastructure/orm-entities";
+import { Repositories } from "@modules/investigations/infrastructure/repositories";
+import { Mappers } from "@modules/investigations/infrastructure/mappers";
+
+// Application - Commands
+import { CommandHandlers } from "@modules/investigations/application/commands";
+
+// Application - Queries
+import { Queries } from "@modules/investigations/application/queries";
+
+// Application - Use Cases
+import { UseCases } from "@modules/investigations/application/domain/usecases";
+
+// Application - Services
+import { Services } from "@modules/investigations/application/domain/services";
+
+// Application - Controllers
+import { Controllers } from "@modules/investigations/application/controllers";
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([...OrmEntities]),
+    CqrsModule,
+  ],
+  controllers: [...Controllers],
+  providers: [
+    // CQRS handlers
+    ...CommandHandlers,
+    ...Queries,
+    // Domain layer
+    ...UseCases,
+    ...Services,
+    // Infrastructure layer
+    ...Repositories,
+    ...Mappers,
+  ],
+  exports: [
+    // Export repositories for use in other modules
+    ...Repositories,
+    // Export mappers for use in other modules
+    ...Mappers,
+  ],
+})
+export class InvestigationsModule {}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/nestjs-ddd-cli/ddd.schema.json",
+  "orm": "typeorm",
+  "database": "postgres",
+  "naming": {
+    "table": "snake_case",
+    "dto": "camelCase",
+    "file": "kebab-case"
+  },
+  "features": {
+    "swagger": true,
+    "pagination": true,
+    "delete": true,
+    "softDelete": true,
+    "hardDelete": false,
+    "timestamps": true,
+    "tests": false,
+    "events": false
+  },
+  "paths": {
+    "modules": "src/modules",
+    "migrations": "src/migrations",
+    "shared": "src/shared"
+  },
+  "templates": {}
+}

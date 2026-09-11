@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    "src/shared/filtering",
+    "src/shared/rate-limit",
+    "src/shared/logging",
+    "src/shared/versioning",
+    "src/shared/health/custom.indicators.ts"
+  ]
+}

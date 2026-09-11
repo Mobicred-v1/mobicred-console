@@ -1,0 +1,76 @@
+:root {
+  color-scheme: light;
+  --ink: #111;
+  --paper: #f4f1ea;
+  --rule: #cfc8ba;
+  --warn: #8a3b12;
+  --ok: #1f4d38;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+main {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+h1 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
+}
+
+.lede {
+  margin: 0 0 1.75rem;
+  max-width: 40rem;
+  line-height: 1.45;
+}
+
+.case {
+  border-top: 1px solid var(--rule);
+  padding: 1rem 0;
+}
+
+.owners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.chip {
+  font-size: 0.75rem;
+  border: 1px solid var(--rule);
+  padding: 0.15rem 0.45rem;
+}
+
+.chip[data-status='unavailable'],
+.chip[data-status='unauthorized'] {
+  color: var(--warn);
+}
+
+.chip[data-status='live'] {
+  color: var(--ok);
+}
+
+.empty {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
