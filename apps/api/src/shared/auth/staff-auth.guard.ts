@@ -1,54 +1,25 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
-
-export type StaffActor = {
-  staffId: string;
-  tenantId: string;
-  roles: string[];
-};
+import { StaffTokenError, verifyStaffToken, type VerifiedStaff } from './staff-token.policy';
+export type StaffActor = VerifiedStaff;
+export type StaffRequest = { headers: Record<string, string | string[] | undefined>; staff?: StaffActor };
 
 @Injectable()
 export class StaffAuthGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) {
-      return true;
-    }
-
-    const request = context.switchToHttp().getRequest<{
-      headers: Record<string, string | undefined>;
-      staff?: StaffActor;
-    }>();
-    const authorization = request.headers.authorization ?? '';
-    if (!authorization.toLowerCase().startsWith('bearer ')) {
-      throw new UnauthorizedException(
-        'Staff session required. Use Keycloak authorization-code tokens; do not paste internal API keys in the browser.',
-      );
-    }
-
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()])) return true;
+    const request = context.switchToHttp().getRequest<StaffRequest>();
+    const header = request.headers.authorization;
     const tenantId = request.headers['x-mobicred-tenant-id'];
-    if (!tenantId?.trim()) {
-      throw new UnauthorizedException(
-        'x-mobicred-tenant-id is required for staff operations',
-      );
+    if (typeof header !== 'string' || !/^Bearer \S+$/i.test(header) || typeof tenantId !== 'string') throw new UnauthorizedException('A verified staff session and tenant are required');
+    try { request.staff = await verifyStaffToken(header.slice(7), tenantId); }
+    catch (error) {
+      if (error instanceof StaffTokenError && error.kind === 'forbidden') throw new ForbiddenException('Staff role or tenant scope denied');
+      if (error instanceof StaffTokenError && error.kind === 'unavailable') throw new ServiceUnavailableException('Staff identity verification is unavailable');
+      throw new UnauthorizedException('Staff session is invalid or expired');
     }
-
-    request.staff = {
-      staffId: 'unverified-until-oidc',
-      tenantId: tenantId.trim(),
-      roles: [],
-    };
     return true;
   }
 }
