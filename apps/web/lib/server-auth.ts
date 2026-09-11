@@ -18,14 +18,16 @@ export function sessionCookieName(): string { return process.env.CONSOLE_PUBLIC_
 export function flowCookieName(): string { return process.env.CONSOLE_PUBLIC_ORIGIN?.startsWith('https:') ? '__Host-mobicred_login' : 'mobicred_login'; }
 export class ApiFailure extends Error { constructor(public readonly status: number) { super('Console source request failed'); } }
 
-export async function consoleRequest(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; sessionId?: string; bearer?: string; tenant?: string } = {}): Promise<unknown> {
+export async function consoleRequest(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; sessionId?: string; bearer?: string; tenant?: string; body?: unknown; idempotencyKey?: string } = {}): Promise<unknown> {
   const base = trustedUrl(process.env.CONSOLE_API_URL, process.env.CONSOLE_ENV === 'development', true).origin;
   if (!path.startsWith('/api/v1/') || path.includes('..')) throw new Error('Invalid console operation');
   const headers: Record<string, string> = { accept: 'application/json' };
   if (options.sessionId) headers['x-console-session'] = options.sessionId;
   if (options.bearer) headers.authorization = `Bearer ${options.bearer}`;
   if (options.tenant) headers['x-mobicred-tenant-id'] = options.tenant;
-  const response = await fetch(`${base}${path}`, { method: options.method ?? 'GET', headers, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000) });
+  if (options.body !== undefined) headers['content-type'] = 'application/json';
+  if (options.idempotencyKey) headers['idempotency-key'] = options.idempotencyKey;
+  const response = await fetch(`${base}${path}`, { method: options.method ?? 'GET', headers, body: options.body !== undefined ? JSON.stringify(options.body) : undefined, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new ApiFailure(response.status);
   if (response.status === 204) return null;
   return JSON.parse(await readLimitedText(response, 1_000_000));

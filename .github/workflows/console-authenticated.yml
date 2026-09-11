@@ -1,0 +1,88 @@
+name: Console authenticated browser checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: authenticated-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: fixture-only-password
+          POSTGRES_DB: console_browser_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_ENV: test
+      CONSOLE_ENV: development
+      CONSOLE_PREVIEW_ENABLED: 'false'
+      DATABASE_URL: postgresql://postgres:fixture-only-password@127.0.0.1:5432/console_browser_test
+      CONSOLE_DATABASE_TESTS: 'true'
+      CONSOLE_RUN_MIGRATIONS: 'true'
+      CONSOLE_CASE_WORKFLOWS_ENABLED: 'true'
+      CONSOLE_CASE_WRITE_ROLES: OPS
+      CONSOLE_AUDIT_READ_ROLES: OPS
+      CONSOLE_CASE_REPORT_ROLES: OPS
+      CONSOLE_PUBLIC_ORIGIN: http://127.0.0.1:3006
+      CONSOLE_API_URL: http://127.0.0.1:3005
+      CONSOLE_OIDC_ISSUER: http://127.0.0.1:4400/realms/staff
+      CONSOLE_OIDC_CLIENT_ID: fixture-client
+      CONSOLE_OIDC_CLIENT_SECRET: fixture-only-secret
+      CONSOLE_OIDC_AUDIENCE: console
+      CONSOLE_STAFF_ROLES: OPS
+      CONSOLE_SESSION_ENCRYPTION_KEY: 'abababababababababababababababababababababababababababababababab'
+      CONSOLE_LOGIN_COOKIE_KEY: 'cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/api build
+      - run: NODE_ENV=production bun run --cwd apps/web build
+      - name: Install isolated browser runner
+        run: |
+          npm install --prefix /tmp/console-browser --no-save --ignore-scripts playwright@1.58.2
+          /tmp/console-browser/node_modules/.bin/playwright install --with-deps chromium > /tmp/browser-install.log 2>&1
+      - name: Start actual built servers and isolated identity provider
+        run: |
+          node tests/fixtures/identity-provider.cjs > /tmp/console-idp.log 2>&1 &
+          (cd apps/api && node dist/main) > /tmp/console-api.log 2>&1 &
+          NODE_ENV=production bun run --cwd apps/web start > /tmp/console-web.log 2>&1 &
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3005/api/v1/console-cases || true)
+            if [ "$STATUS" = '401' ] && curl -fsS http://127.0.0.1:4400/health >/dev/null && curl -fsS http://127.0.0.1:3006/auth/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/console-idp.log /tmp/console-api.log /tmp/console-web.log
+          exit 1
+      - name: Isolated session transport check
+        run: node tests/fixtures/session-preflight.cjs
+      - name: Authenticated browser journey
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/authenticated-smoke.cjs
+      - name: Failure diagnostics
+        if: failure()
+        run: tail -n 100 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: console-authenticated-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
