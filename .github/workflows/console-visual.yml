@@ -30,7 +30,7 @@ jobs:
       - name: Start preview and production-policy servers
         run: |
           CONSOLE_ENV=preview CONSOLE_PREVIEW_ENABLED=true bun run --cwd apps/web start > /tmp/console-preview.log 2>&1 &
-          (cd apps/web && CONSOLE_ENV=production CONSOLE_PREVIEW_ENABLED=true ../../node_modules/.bin/next start --port 3007) > /tmp/console-production.log 2>&1 &
+          (cd apps/web && CONSOLE_ENV=production CONSOLE_PREVIEW_ENABLED=true bun run next start --port 3007) > /tmp/console-production.log 2>&1 &
           for i in $(seq 1 40); do
             if curl -fsS http://localhost:3006/preview/overview >/dev/null && curl -fsS http://localhost:3007/overview >/dev/null; then exit 0; fi
             sleep 2

@@ -1,1 +1,3 @@
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* The current preview contains one case of each category, not estimated volumes. */
+.donut{background:conic-gradient(#159588 0 25%,#66bfb1 25% 50%,#dba45a 50% 75%,#d9e7e9 75%)}
