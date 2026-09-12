@@ -1,6 +1,7 @@
 import 'server-only';
 import { ApiFailure, consoleRequest, currentSession } from './server-auth';
 import { caseRecord, creditRecord, ownerSlices, sourceItems } from './live-records';
+import { capabilityData, sourceQualityData } from './platform-records';
 import type { ConsoleData, ConsoleRecord, ConsoleSession, SectionId } from './console-model';
 
 export async function loadWorkspace(section: SectionId, id?: string): Promise<{ data: ConsoleData; session?: ConsoleSession }> {
@@ -10,6 +11,12 @@ export async function loadWorkspace(section: SectionId, id?: string): Promise<{ 
     if (!current) return { data: { state: 'unauthorized', items: [], detail: 'Sign in with your authorized staff identity to load records in your tenant.' } };
     session = current.session;
     const request = (path: string) => consoleRequest(path, { sessionId: current.id });
+    if (section === 'ingestion' || section === 'people' || section === 'configuration' || section === 'operations') {
+      const data = section === 'ingestion' ? sourceQualityData(await request('/api/v1/console-read/ingestion'), session.tenant)
+        : capabilityData(await request('/api/v1/console-capabilities'), session.tenant, section);
+      if (id) data.items = data.items.filter((item) => item.id === id);
+      return { session, data };
+    }
     if (section === 'overview' || section === 'inbox') {
       if (id) {
         if (!/^[a-f0-9-]{36}$/i.test(id)) throw new ApiFailure(404);

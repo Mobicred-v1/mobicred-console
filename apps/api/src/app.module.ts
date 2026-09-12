@@ -8,6 +8,8 @@ import { StaffAuthGuard } from './shared/auth/staff-auth.guard';
 import { SessionsModule } from './shared/sessions/sessions.module';
 import { OwnersModule } from './infrastructure/owners/owners.module';
 import { CreditReadController } from './infrastructure/owners/credit-read.controller';
+import { IngestionReadController } from './infrastructure/owners/ingestion-read.controller';
+import { ConsoleCapabilitiesController } from './infrastructure/owners/console-capabilities';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
 import { CaseWorkflowModule } from './modules/investigations/case-workflow.module';
 import { PrepareConsoleDatabase1789159810000 } from './migrations/1789159810000-prepare-console-database';
@@ -37,7 +39,7 @@ import { AuditedCaseWorkflows1789167000000 } from './migrations/1789167000000-au
     InvestigationsModule,
     CaseWorkflowModule,
   ],
-  controllers: [CreditReadController],
+  controllers: [CreditReadController, IngestionReadController, ConsoleCapabilitiesController],
   providers: [{ provide: APP_GUARD, useClass: StaffAuthGuard }],
 })
 export class AppModule {}
