@@ -1,0 +1,24 @@
+name: Branch policy
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [develop, staging, main]
+permissions:
+  contents: read
+concurrency:
+  group: branch-policy-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Policy regression tests
+        run: node --test scripts/branch-policy.spec.cjs
+      - name: Validate promotion direction
+        if: github.event_name == 'pull_request'
+        run: node scripts/branch-policy.cjs

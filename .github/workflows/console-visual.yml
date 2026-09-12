@@ -1,0 +1,48 @@
+name: Console browser checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: visual-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/web build
+      - name: Install isolated browser test runner
+        run: |
+          npm install --prefix /tmp/console-browser --no-save --ignore-scripts playwright@1.58.2
+          /tmp/console-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Start preview and production-policy servers
+        run: |
+          CONSOLE_ENV=preview CONSOLE_PREVIEW_ENABLED=true bun run --cwd apps/web start > /tmp/console-preview.log 2>&1 &
+          (cd apps/web && CONSOLE_ENV=production CONSOLE_PREVIEW_ENABLED=true bun run next start --port 3007) > /tmp/console-production.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:3006/preview/overview >/dev/null && curl -fsS http://localhost:3007/overview >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/console-preview.log /tmp/console-production.log
+          exit 1
+      - name: Browser coverage and screenshots
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/ui-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: console-browser-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

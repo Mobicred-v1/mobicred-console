@@ -1,0 +1,32 @@
+import type { CSSProperties } from 'react';
+const paths: Record<string, string> = {
+ home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
+ inbox: 'M4 4h16v16H4ZM4 13h5l2 3h2l2-3h5',
+ users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+ user: 'M20 21v-2a7 7 0 0 0-14 0v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+ wallet: 'M21 8H3V5a2 2 0 0 1 2-2h13v5M3 8v11a2 2 0 0 0 2 2h16V8M21 12h-6v5h6',
+ shield: 'M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6ZM8 12l3 3 5-6',
+ building: 'M4 22V3h12v19M16 10h5v12M8 7h4M8 11h4M8 15h4M9 22v-3h3v3',
+ database: 'M3 5c0-4 18-4 18 0s-18 4-18 0ZM3 5v14c0 4 18 4 18 0V5M3 12c0 4 18 4 18 0',
+ link: 'm10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0M16 8l2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0',
+ activity: 'M2 12h4l3-8 6 16 3-8h4',
+ sliders: 'M4 3v6m0 6v6M12 3v12m0 4v2M20 3v2m0 6v10M1 9h6v6H1ZM9 15h6v4H9ZM17 5h6v6h-6Z',
+ check: 'M20 6 9 17l-5-5',
+ file: 'M14 2H4v20h16V8ZM14 2v6h6M8 12h8M8 16h8',
+ chart: 'M3 3v18h18M7 16v-5M12 16V7M17 16v-8',
+ search: 'M21 21l-5-5M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16',
+ bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
+ arrow: 'M7 17 17 7M7 7h10v10',
+ chevron: 'm9 5 7 7-7 7',
+ down: 'm6 9 6 6 6-6',
+ close: 'm6 6 12 12M6 18 18 6',
+ plus: 'M12 5v14M5 12h14',
+ menu: 'M3 6h18M3 12h18M3 18h18',
+ refresh: 'M20 7v5h-5M4 17v-5h5M5 8a7 7 0 0 1 12-3l3 3M4 16l3 3a7 7 0 0 0 12-3',
+ clock: 'M12 8v5l3 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20',
+ lock: 'M5 10h14v12H5ZM8 10V6a4 4 0 0 1 8 0v4',
+ info: 'M12 11v6M12 7h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20',
+ download: 'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',
+};
+export function Icon({ name, size = 18, style }: { name: string; size?: number; style?: CSSProperties }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={style}><path d={paths[name] ?? paths.file} /></svg>; }
+export function Logo() { return <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 36" fill="none"><path d="M16 0 32 9v18l-16 9L0 27V9Z" fill="#27c7b8"/><path d="m16 0 16 9-16 9L0 9Z" fill="#71e5d8"/><path d="m0 9 16 9v18L0 27Z" fill="#15968e"/><path d="m16 10 7 4v8l-7 4-7-4v-8Z" fill="white"/></svg></span>; }

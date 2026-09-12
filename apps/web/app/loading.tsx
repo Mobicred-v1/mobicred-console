@@ -1,0 +1,1 @@
+export default function Loading() { return <main className="auth-page" aria-busy="true"><section className="auth-card" role="status"><div className="eyebrow">Mobicred Console</div><h1>Loading your workspace…</h1><p>Resolving staff scope and source availability.</p></section></main>; }
