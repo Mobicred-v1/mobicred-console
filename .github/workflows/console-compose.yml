@@ -1,0 +1,87 @@
+name: Console compose checks
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [develop, staging, main]
+permissions:
+  contents: read
+concurrency:
+  group: compose-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Startup policy tests
+        run: node --test deploy/runtime-config.spec.cjs
+      - name: Generate ephemeral fixture secrets and TLS certificate
+        run: |
+          mkdir -p .compose-test
+          umask 077
+          node <<'NODE' > .compose-test/env
+          const { randomBytes } = require('node:crypto');
+          const values = {
+            SERVICE_PASSWORD_POSTGRES: randomBytes(32).toString('hex'),
+            SERVICE_HEX_64_SESSION: randomBytes(32).toString('hex'),
+            SERVICE_HEX_64_LOGIN: randomBytes(32).toString('hex'),
+            SERVICE_URL_WEB_3006: 'https://console.example.test:8443',
+            CONSOLE_OIDC_ISSUER: 'https://identity.example.test:8443/realms/staff',
+            CONSOLE_OIDC_CLIENT_ID: 'mobicred-console',
+            CONSOLE_OIDC_CLIENT_SECRET: randomBytes(32).toString('hex'),
+            CONSOLE_OIDC_AUDIENCE: 'mobicred-console',
+            CONSOLE_STAFF_ROLES: 'OPS',
+            CONSOLE_CASE_WORKFLOWS_ENABLED: 'true',
+            CONSOLE_CASE_WRITE_ROLES: 'OPS',
+            CONSOLE_AUDIT_READ_ROLES: 'OPS',
+            CONSOLE_CASE_REPORT_ROLES: 'OPS',
+          };
+          console.log(Object.entries(values).map(([key, value]) => `${key}=${value}`).join('\n'));
+          NODE
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=console.example.test' \
+            -addext 'subjectAltName=DNS:console.example.test,DNS:identity.example.test' \
+            -keyout .compose-test/tls.key -out .compose-test/tls.crt >/dev/null 2>&1
+          chmod 644 .compose-test/tls.crt
+          printf '127.0.0.1 console.example.test identity.example.test\n' | sudo tee -a /etc/hosts >/dev/null
+          printf 'SHOULD_NOT_SHIP=build-context-canary\n' > apps/web/.env.build-leak-test
+      - name: Validate production Compose topology without printing secrets
+        run: docker compose --env-file .compose-test/env -f docker-compose.yml config --format json | node tests/compose/check-config.cjs
+      - name: Build the exact production image targets
+        run: docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml build
+      - name: Cold-start the production stack with an isolated TLS edge
+        run: docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml up -d --wait --wait-timeout 240
+      - name: Check non-root runtime and absence of build secrets
+        run: |
+          for SERVICE in api web; do
+            test "$(docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml exec -T "$SERVICE" id -u)" = '1000'
+            docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml exec -T "$SERVICE" node -e "const fs=require('node:fs');if(fs.existsSync('/app/apps/web/.env.build-leak-test')||fs.existsSync('/app/tests/compose/edge.cjs')||fs.existsSync('/usr/local/bin/bun'))process.exit(1)"
+          done
+      - name: Install isolated browser runner
+        run: |
+          npm install --prefix /tmp/console-compose-browser --no-save --ignore-scripts playwright@1.58.2
+          /tmp/console-compose-browser/node_modules/.bin/playwright install --with-deps chromium > /tmp/compose-browser-install.log 2>&1
+      - name: Production-container browser and persistence journey
+        run: NODE_PATH=/tmp/console-compose-browser/node_modules node tests/compose/smoke.cjs
+      - name: Refuse invalid production settings before starting services
+        run: |
+          if docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml run --rm --no-deps -e CONSOLE_SESSION_ENCRYPTION_KEY=invalid api; then exit 1; fi
+          if docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml run --rm --no-deps -e CONSOLE_PREVIEW_ENABLED=true web; then exit 1; fi
+      - name: Failure diagnostics
+        if: failure()
+        run: docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml logs --no-color --tail=100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: console-compose-${{ github.sha }}
+          path: artifacts/compose/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Remove only the isolated CI stack and ephemeral secrets
+        if: always()
+        run: |
+          docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml down --volumes --remove-orphans || true
+          rm -rf .compose-test apps/web/.env.build-leak-test

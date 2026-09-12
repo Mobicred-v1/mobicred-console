@@ -4,6 +4,26 @@ An internal operations workspace for customer investigations, payments, credit,
 partners and platform governance. The console does not own banking balances,
 payment-provider state, scores or lending execution.
 
+## Deploy once in Coolify
+
+Create **one Git-based Application** from this repository, choose the **Docker
+Compose** build pack, branch **main**, Base Directory **/** and Compose Location
+**/docker-compose.yml**. Set an HTTPS domain on **web only**, targeting internal
+port **3006**. Enter your existing Keycloak staff issuer/client secret and explicit
+staff roles. Coolify generates the database password and two encryption keys.
+
+The stack builds and starts **web + API + PostgreSQL** with persistent database
+storage, health checks, automatic serialized migrations and internal networking.
+No separate database/application resources, public API domain, manual schema
+initialization, or registry credentials are required. Application code stays in Git;
+redeploy this same resource after future main promotions.
+
+Read **[the one-time Coolify setup](docs/coolify.md)** for exact fields, Keycloak
+callback/mappers, capability gates, backups and troubleshooting. Existing staff
+identity is required; the stack does not create a new identity provider or bypass
+login. Optional writes/owner reads remain explicitly permissioned and disabled
+until enabled. Do not use Docker Compose Empty for this source-built stack.
+
 ## Applications
 
 - `apps/web`: Next.js responsive console, port 3006.
@@ -41,16 +61,17 @@ atomically. Other owner-service writes remain disabled.
 
 ## Coverage is explicit
 
-`docs/implementation-coverage.md` separates completed visual workspaces from
-available live integrations. This series implements live case operations, the
-case audit feed and workload reports, plus an optional scoped credit read adapter.
-Customer, payment, partner, alias, configuration and staff-directory owner
-integrations still require their permission-scoped contracts. Missing sources
-show unavailable states; preview fixtures are never a production fallback.
+`docs/implementation-coverage.md` separates visual workspaces from implemented
+live integrations. Cases, case audit and workload reports are persisted. Optional
+scoped credit/ingestion read adapters and effective-capability views are present.
+Customer, payment, partner, alias, full staff-directory and mutable owner
+configuration integrations still require their permission-scoped contracts.
+Missing sources show unavailable states; preview fixtures are never a fallback.
 
 ## Checks
 
 ```sh
+node --test deploy/runtime-config.spec.cjs
 bun run --cwd apps/api build
 bun run --cwd apps/api test --runInBand
 bun test tests
@@ -58,15 +79,14 @@ bun run --cwd apps/web build
 bun run --cwd apps/web lint
 ```
 
-GitHub Actions additionally run all fourteen workspaces at desktop and mobile
-sizes, a real PostgreSQL transaction/isolation suite, and an authenticated browser
-journey against compiled application servers and an isolated test identity
-provider. The latter validates the code flow but is not proof of production
-Keycloak or production owner-service configuration.
+GitHub Actions also run desktop/mobile previews, PostgreSQL transaction/isolation,
+authenticated fixture journeys and real Docker Compose image/startup/persistence
+checks. Fixture verification is not proof of production Coolify, Keycloak or
+owner-service configuration. See `docs/coolify.md` for the Compose test boundary.
 
-## Review order
+## Delivery order
 
-The implementation is split into stacked PRs: security foundation, complete UI,
-authenticated integration, then audited case workflows. Merge in that order and
-validate the configured integration in staging before any production rollout.
-No PR automatically deploys the application or alters production services.
+Feature/fix PRs -> **develop** -> **staging** -> **main**, with current-candidate
+checks at each promotion. Preserve ancestry with merge commits. See `AGENTS.md`
+and `docs/release-flow.md`. Coolify may deploy main after its Git webhook is
+configured; merging a PR alone is not evidence that production has deployed.
