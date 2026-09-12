@@ -1,6 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { trustedUrl, validSessionId, readLimitedText } from './auth-policy';
+import { consoleApiOrigin } from './api-origin';
 import type { ConsoleSession } from './console-model';
 
 export function authConfig() {
@@ -19,7 +20,7 @@ export function flowCookieName(): string { return process.env.CONSOLE_PUBLIC_ORI
 export class ApiFailure extends Error { constructor(public readonly status: number) { super('Console source request failed'); } }
 
 export async function consoleRequest(path: string, options: { method?: 'GET' | 'POST' | 'DELETE'; sessionId?: string; bearer?: string; tenant?: string; body?: unknown; idempotencyKey?: string } = {}): Promise<unknown> {
-  const base = trustedUrl(process.env.CONSOLE_API_URL, process.env.CONSOLE_ENV === 'development', true).origin;
+  const base = consoleApiOrigin();
   if (!path.startsWith('/api/v1/') || path.includes('..')) throw new Error('Invalid console operation');
   const headers: Record<string, string> = { accept: 'application/json' };
   if (options.sessionId) headers['x-console-session'] = options.sessionId;

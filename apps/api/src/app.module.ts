@@ -12,10 +12,7 @@ import { IngestionReadController } from './infrastructure/owners/ingestion-read.
 import { ConsoleCapabilitiesController } from './infrastructure/owners/console-capabilities';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
 import { CaseWorkflowModule } from './modules/investigations/case-workflow.module';
-import { PrepareConsoleDatabase1789159810000 } from './migrations/1789159810000-prepare-console-database';
-import { CreateInvestigationCaseTable1789159811303 } from './migrations/1789159811303-create_investigation_cases_table';
-import { ConsoleSessions1789165000000 } from './migrations/1789165000000-console-sessions';
-import { AuditedCaseWorkflows1789167000000 } from './migrations/1789167000000-audited-case-workflows';
+import { consoleMigrations } from './migrations';
 
 @Module({
   imports: [
@@ -29,7 +26,7 @@ import { AuditedCaseWorkflows1789167000000 } from './migrations/1789167000000-au
         logging: config.get<boolean>('database.logging') ?? false,
         autoLoadEntities: true,
         synchronize: false,
-        migrations: [PrepareConsoleDatabase1789159810000, CreateInvestigationCaseTable1789159811303, ConsoleSessions1789165000000, AuditedCaseWorkflows1789167000000],
+        migrations: consoleMigrations,
         migrationsRun: process.env.CONSOLE_RUN_MIGRATIONS === 'true',
       }),
     }),
