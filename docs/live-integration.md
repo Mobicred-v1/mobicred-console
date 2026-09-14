@@ -26,6 +26,17 @@ Preview is a separate non-production, explicit opt-in path, never an outage fall
 - CONSOLE_STAFF_ROLES: explicit console-entry roles.
 - CONSOLE_SESSION_ENCRYPTION_KEY: 64 hexadecimal characters from 32 random bytes.
 - DATABASE_URL and existing database settings for native deployments.
+- CONSOLE_RUN_MIGRATIONS: true only for a controlled native migration rollout; false for ordinary native startup after migrations are applied.
+
+For a native deployment that starts `apps/api/dist/main.js` directly, there is no
+Compose migration wrapper. Back up and rehearse the migration first, stop other
+migration runners, and start exactly one native API instance with
+CONSOLE_RUN_MIGRATIONS=true during the approved rollout. Nest applies the explicitly
+registered migrations before accepting requests. Confirm completion, then use
+CONSOLE_RUN_MIGRATIONS=false on normal starts. The migration account needs the
+required schema privileges and uuid-ossp support, preinstalled by a DBA when
+necessary. Never use schema synchronization or skip the PlatformStaffContext
+migration: old schemas lack the partner_context and partner_code fields.
 
 The introspection response must expose active=true, iss, sub, aud, exp and staff
 roles in realm_access or the configured audience's resource_access. An nbf claim,
