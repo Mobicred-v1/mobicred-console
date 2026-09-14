@@ -12,7 +12,7 @@ concurrency:
 jobs:
   end-to-end:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -41,13 +41,14 @@ jobs:
       CONSOLE_INGESTION_READS_ENABLED: 'true'
       CONSOLE_INGESTION_READ_ROLES: OPS
       CONSOLE_CREDIT_URL: http://127.0.0.1:4500
+      CONSOLE_CORE_URL: http://127.0.0.1:4500
       CONSOLE_PUBLIC_ORIGIN: http://127.0.0.1:3006
       CONSOLE_API_URL: http://127.0.0.1:3005
       CONSOLE_OIDC_ISSUER: http://127.0.0.1:4400/realms/staff
       CONSOLE_OIDC_CLIENT_ID: fixture-client
       CONSOLE_OIDC_CLIENT_SECRET: fixture-only-secret
       CONSOLE_OIDC_AUDIENCE: console
-      CONSOLE_STAFF_ROLES: OPS
+      CONSOLE_STAFF_ROLES: OPS,ADMIN
       CONSOLE_SESSION_ENCRYPTION_KEY: 'abababababababababababababababababababababababababababababababab'
       CONSOLE_LOGIN_COOKIE_KEY: 'cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
     steps:
@@ -77,15 +78,13 @@ jobs:
           done
           cat /tmp/console-idp.log /tmp/console-owner.log /tmp/console-api.log /tmp/console-web.log
           exit 1
-      - name: Isolated session transport check
+      - name: Platform session preflight
         run: node tests/fixtures/session-preflight.cjs
-      - name: Authenticated case journey
-        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/authenticated-smoke.cjs
-      - name: Ingestion and capability journey
-        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/ingestion-smoke.cjs
+      - name: Authenticated platform, partner and ingestion journeys
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/staff-console-smoke.cjs
       - name: Failure diagnostics
         if: failure()
-        run: tail -n 100 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log /tmp/console-owner.log || true
+        run: tail -n 80 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log /tmp/console-owner.log || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

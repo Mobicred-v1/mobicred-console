@@ -1,74 +1,79 @@
 # Mobicred Console
 
-An internal operations workspace for customer investigations, payments, credit,
-partners and platform governance. The console does not own banking balances,
-payment-provider state, scores or lending execution.
+The internal Mobicred staff workspace for investigations, partner administration
+and platform operations. Mobicred owns the platform; partners are optional working
+context, not separate console login identities.
+
+## Staff sign-in and working context
+
+Sign in once with an authorized staff identity. No tenant field or tenant claim is
+required. The initial workspace covers all partners, subject to operation-specific
+staff permissions. Select a verified partner and API environment after sign-in to
+focus your work; return to all partners without signing in again.
+
+A global server-side session boundary protects pages, nested routes, RSC/prefetch
+requests and browser API routes before rendering. Backend guards independently
+verify identity. Missing, forged, expired or revoked sessions are denied; identity
+outages fail closed. Already-open tabs lock or reauthenticate when their session
+expires or becomes unavailable. See [staff and partner operations](docs/platform-staff-and-partners.md).
 
 ## Deploy once in Coolify
 
-Create **one Git-based Application** from this repository, choose the **Docker
-Compose** build pack, branch **main**, Base Directory **/** and Compose Location
-**/docker-compose.yml**. Set an HTTPS domain on **web only**, targeting internal
-port **3006**. Enter your existing Keycloak staff issuer/client secret and explicit
-staff roles. Coolify generates the database password and two encryption keys.
+Create one Git-based Application from this repository. Select branch **main**, the
+**Docker Compose** build pack, Base Directory **/** and Compose Location
+**/docker-compose.yml**. Set a public HTTPS domain on **web only**, targeting its
+internal port **3006**. Set **CONSOLE_PUBLIC_ORIGIN** explicitly to the browser's
+HTTPS origin, without the internal container port.
 
-The stack builds and starts **web + API + PostgreSQL** with persistent database
-storage, health checks, automatic serialized migrations and internal networking.
-No separate database/application resources, public API domain, manual schema
-initialization, or registry credentials are required. Application code stays in Git;
-redeploy this same resource after future main promotions.
+Supply the existing staff issuer, confidential client secret, matching audience
+and explicit staff roles. Keep the generated database password and independent
+session/login encryption keys stable across redeployments. The stack contains
+**web + API + PostgreSQL** with persistent storage, readiness checks and serialized
+automatic console migrations. Do not create separate application/database resources
+or use Docker Compose Empty for these source-built images.
 
-Read **[the one-time Coolify setup](docs/coolify.md)** for exact fields, Keycloak
-callback/mappers, capability gates, backups and troubleshooting. Existing staff
-identity is required; the stack does not create a new identity provider or bypass
-login. Optional writes/owner reads remain explicitly permissioned and disabled
-until enabled. Do not use Docker Compose Empty for this source-built stack.
+See [the Coolify setup](docs/coolify.md). No deployed environment or live identity
+configuration is created merely by merging source code.
 
-## Applications
+## Native partner administration
 
-- `apps/web`: Next.js responsive console, port 3006.
-- `apps/api`: NestJS staff BFF and investigation workflows, port 3005.
-- PostgreSQL: console-owned cases, notes, audit receipts and encrypted sessions.
+Set **CONSOLE_CORE_URL** to the Core HTTPS origin hosting the staff partner-workspace
+contract. The console delegates the verified staff token, never a general-purpose
+internal API key. Core remains authoritative for partners, environments, access
+policies, credentials and customer references.
 
-## Design preview
+The partner workspace implements native partner creation with a first environment
+and access policy, additional environments, credential issuance/rotation/revocation,
+credential metadata, and paginated partner customer connections. API secrets are
+shown once and are not stored in browser storage, receipts or audit metadata.
+
+Core's staff contract and database migration must be deployed separately before
+those features are operational. ADMIN/OPS can read and onboard; ADMIN is required
+for credential operations. External partners use their own API credentials, not
+this staff console. Missing owner contracts produce explicit unavailable states.
+
+## Applications and data ownership
+
+- `apps/web`: responsive staff UI, port 3006.
+- `apps/api`: staff backend-for-frontend and investigation workflows, port 3005.
+- PostgreSQL: console sessions, optional context, cases, notes and audit receipts.
+
+The console does not own banking balances, provider payment state, credit scores
+or loan execution. See [implementation coverage](docs/implementation-coverage.md)
+for connected features, deliberate limits and remaining integrations.
+
+## Local design preview
 
 ```sh
 bun install --frozen-lockfile
 CONSOLE_ENV=preview CONSOLE_PREVIEW_ENABLED=true bun run --cwd apps/web dev
 ```
 
-Open `/preview/overview` on the web application. All preview identities, amounts,
-service statuses and case records are synthetic. Preview actions never call owner
-services. Both preview switches are required; production preview routes return
-404. Do not configure a real production deployment with CONSOLE_ENV=preview.
+Open `/preview/overview`. Every fixture is synthetic. Preview actions do not call
+owner services. Both switches are required; production preview requests return 404.
+Never set CONSOLE_ENV=preview on the production resource.
 
-The fourteen workspaces are overview, investigation inbox, customers, payments,
-credit and risk, partners, data ingestion, aliases, operations, configuration,
-approvals, people and access, audit, and reports. Tables, filters, search, detail
-views, keyboard navigation and mobile layouts are implemented.
-
-## Authenticated operation
-
-Read `docs/live-integration.md` for the Keycloak confidential client, S256 PKCE,
-exact redirect URI, verified tenant/role claims, server-side sessions, encryption
-keys and controlled database migrations. No access token is stored in browser
-localStorage or sessionStorage. Identity outages fail closed.
-
-Read `docs/case-workflows.md` to enable case creation, assignment, notes,
-resolution and reopening. These commands require configured write roles, a
-reason, idempotency key and current version. Case state, audit and receipt commit
-atomically. Other owner-service writes remain disabled.
-
-## Coverage is explicit
-
-`docs/implementation-coverage.md` separates visual workspaces from implemented
-live integrations. Cases, case audit and workload reports are persisted. Optional
-scoped credit/ingestion read adapters and effective-capability views are present.
-Customer, payment, partner, alias, full staff-directory and mutable owner
-configuration integrations still require their permission-scoped contracts.
-Missing sources show unavailable states; preview fixtures are never a fallback.
-
-## Checks
+## Checks and delivery
 
 ```sh
 node --test deploy/runtime-config.spec.cjs
@@ -79,14 +84,12 @@ bun run --cwd apps/web build
 bun run --cwd apps/web lint
 ```
 
-GitHub Actions also run desktop/mobile previews, PostgreSQL transaction/isolation,
-authenticated fixture journeys and real Docker Compose image/startup/persistence
-checks. Fixture verification is not proof of production Coolify, Keycloak or
-owner-service configuration. See `docs/coolify.md` for the Compose test boundary.
-
-## Delivery order
+GitHub Actions also exercise real temporary PostgreSQL databases, protected-page
+and authenticated partner journeys, desktop/mobile layouts, and actual Docker
+Compose startup/persistence. Identity and owner fixtures are isolated test systems,
+not proof of production connectivity.
 
 Feature/fix PRs -> **develop** -> **staging** -> **main**, with current-candidate
-checks at each promotion. Preserve ancestry with merge commits. See `AGENTS.md`
-and `docs/release-flow.md`. Coolify may deploy main after its Git webhook is
-configured; merging a PR alone is not evidence that production has deployed.
+checks at every promotion and merge commits preserving ancestry. See `AGENTS.md`
+and `docs/release-flow.md`. Keep existing data volumes and encryption keys when
+redeploying; take tested backups before applying production migrations.
