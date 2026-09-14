@@ -24,7 +24,8 @@ integration('platform staff sessions, partner context and audited cases against 
         if (!ownerAvailable) return json({}, 503);
         const match = target.match(/\/partner-workspace\/(alpha|beta)\/context\/sandbox$/);
         if (!match) return json({}, 404);
-        return json({ schemaVersion: 1, partnerCode: match[1], partnerName: match[1], tenantId: 'sandbox', displayName: 'Sandbox', environment: 'SANDBOX', status: 'ACTIVE', countryCodes: ['CI'] });
+        // Match Core's global ResponseEnvelopeInterceptor, not only the controller DTO.
+        return json({ success: true, data: { schemaVersion: 1, partnerCode: match[1], partnerName: match[1], tenantId: 'sandbox', displayName: 'Sandbox', environment: 'SANDBOX', status: 'ACTIVE', countryCodes: ['CI'] }, meta: { requestId: 'fixture', correlationId: 'fixture', timestamp: new Date().toISOString() } });
       }
       const body = new URLSearchParams(String(init?.body)); const token = body.get('token') ?? '';
       const role = token.endsWith('AUDIT_READER') ? 'AUDIT_READER' : token.endsWith('CUSTOMER') ? 'CUSTOMER' : 'OPS';
