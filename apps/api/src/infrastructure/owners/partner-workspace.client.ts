@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, HttpException, ServiceUnavaila
 import { boundedOwnerJson, ownerOrigin } from './owner-read.transport';
 import type { StaffRequest } from '../../shared/auth/staff-auth.guard';
 import { projectCorePartnerResponse } from './core-response.policy';
+import { assertPartnerCommandReceipt } from './partner-command-receipt.policy';
 export const safePartnerCode = (v: unknown): string => { if (typeof v !== 'string' || !/^[a-z0-9][a-z0-9_-]{1,63}$/.test(v)) throw new BadRequestException('Invalid partner context'); return v; };
 export function partnerPermissions(request: StaffRequest) { const roles = request.staff?.roles ?? []; return { canRead: roles.some((r) => ['ADMIN', 'OPS'].includes(r)), canCreate: roles.some((r) => ['ADMIN', 'OPS'].includes(r)), canManageCredentials: roles.includes('ADMIN') }; }
 export async function partnerOwner(request: StaffRequest, operation: 'list' | 'detail' | 'customers' | 'context' | 'command', args: { code?: string; tenantId?: string; page?: string; q?: string; command?: unknown; key?: string } = {}) {
@@ -41,6 +42,7 @@ export async function partnerOwner(request: StaffRequest, operation: 'list' | 'd
       throw new Error();
     }
     const result = projectCorePartnerResponse(await boundedOwnerJson(response), operation);
+    if (operation === 'command') assertPartnerCommandReceipt(result, args.command);
     if (args.code && operation !== 'detail' && result.partnerCode !== args.code) throw new Error();
     if (operation === 'context' && (result.tenantId !== args.tenantId || result.status !== 'ACTIVE')) throw new Error();
     if (operation === 'customers' && result.tenantId !== (args.tenantId ?? null)) throw new Error();
