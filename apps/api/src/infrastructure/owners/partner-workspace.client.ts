@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, HttpException, ServiceUnavailableException } from '@nestjs/common';
 import { boundedOwnerJson, ownerOrigin } from './owner-read.transport';
 import type { StaffRequest } from '../../shared/auth/staff-auth.guard';
-import { projectPartnerResponse } from './partner-contract.policy';
+import { projectCorePartnerResponse } from './core-response.policy';
 export const safePartnerCode = (v: unknown): string => { if (typeof v !== 'string' || !/^[a-z0-9][a-z0-9_-]{1,63}$/.test(v)) throw new BadRequestException('Invalid partner context'); return v; };
 export function partnerPermissions(request: StaffRequest) { const roles = request.staff?.roles ?? []; return { canRead: roles.some((r) => ['ADMIN', 'OPS'].includes(r)), canCreate: roles.some((r) => ['ADMIN', 'OPS'].includes(r)), canManageCredentials: roles.includes('ADMIN') }; }
 export async function partnerOwner(request: StaffRequest, operation: 'list' | 'detail' | 'customers' | 'context' | 'command', args: { code?: string; tenantId?: string; page?: string; q?: string; command?: unknown; key?: string } = {}) {
@@ -31,7 +31,7 @@ export async function partnerOwner(request: StaffRequest, operation: 'list' | 'd
     const context = request.staff?.partnerContext;
     if (context && (context.partnerCode !== command.partnerCode || context.tenantId !== command.tenantId)) throw new ForbiddenException('Leave partner context before changing another environment');
     if (!args.key || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(args.key)) throw new BadRequestException('An idempotency key is required');
-    headers['idempotency-key'] = args.key; headers['content-type'] = 'application/json';
+    headers['x-idempotency-key'] = args.key; headers['content-type'] = 'application/json';
   }
   try {
     const response = await fetch(url, { method: operation === 'command' ? 'POST' : 'GET', body: operation === 'command' ? JSON.stringify(args.command) : undefined, headers, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
@@ -40,7 +40,7 @@ export async function partnerOwner(request: StaffRequest, operation: 'list' | 'd
       if ([400, 401, 403, 404, 409, 429].includes(response.status)) throw new HttpException(response.status === 409 ? 'This operation conflicts with the owner state. Inspect the record before retrying.' : 'The owner could not authorize or complete this operation.', response.status);
       throw new Error();
     }
-    const result = projectPartnerResponse(await boundedOwnerJson(response), operation);
+    const result = projectCorePartnerResponse(await boundedOwnerJson(response), operation);
     if (args.code && operation !== 'detail' && result.partnerCode !== args.code) throw new Error();
     if (operation === 'context' && (result.tenantId !== args.tenantId || result.status !== 'ACTIVE')) throw new Error();
     if (operation === 'customers' && result.tenantId !== (args.tenantId ?? null)) throw new Error();
