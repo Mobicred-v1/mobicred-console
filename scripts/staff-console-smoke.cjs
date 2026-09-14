@@ -53,7 +53,10 @@ const sections = ['overview', 'inbox', 'customers', 'payments', 'credit', 'partn
     for (const path of [...sections.map((s) => `/${s}`), '/partners/alpha', '/inbox/a.json', '/not-a-real-page', '/overview.css']) {
       const response = await page.request.get(`${origin}${path}`, { maxRedirects: 0 });
       assert.equal(response.status(), 303, `${path}: must redirect before rendering protected content`);
-      assert.equal(new URL(response.headers().location).pathname, '/auth/login');
+      assert.ok(response.headers().location, 'login redirect must include Location');
+      const target = new URL(response.headers().location, origin);
+      assert.equal(target.origin, origin, 'redirect must remain on the configured origin');
+      assert.equal(target.pathname, '/auth/login');
       assert.ok(!(await response.text()).includes('console-navigation'));
     }
     assert.equal((await page.request.get(`${origin}/api/partners`, { maxRedirects: 0 })).status(), 401);
