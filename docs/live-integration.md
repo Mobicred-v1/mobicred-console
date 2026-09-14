@@ -1,71 +1,85 @@
 # Authenticated console integration
 
-## What this connects
+## Authentication is platform-wide
 
-- Keycloak authorization-code login with S256 PKCE, short-lived encrypted state,
-  exact redirect origin, and server-side access-token introspection.
-- Opaque HttpOnly browser sessions backed by Postgres. Access tokens are encrypted
-  at rest; only a hash of the opaque session identifier is stored in the database.
-- Tenant-scoped investigation list, detail and composed owner availability.
-- Optional read-only Credit Intelligence search using its verified existing
-  `/api/v1/score-decisions/admin/search` contract. Each response row must match the
-  verified tenant; raw decision traces and internal API keys are never forwarded.
+This is a Mobicred staff console. Login verifies active status, exact issuer,
+expected audience, subject, expiry and an explicitly allowed staff role. There is
+no tenant or partner input at login and no tenant claim requirement. Do not add
+wildcard tenant grants to approximate platform access.
 
-No production owner mutations are introduced. Case writes remain unavailable
-until the audited case-command change is installed. Other workspaces keep their
-explicit unavailable state until their staff contracts are connected.
+The current identity adapter uses authorization-code sign-in with S256 PKCE,
+encrypted short-lived login state and server-side introspection. Browser cookies
+contain an opaque HttpOnly session identifier; tokens remain encrypted in Postgres.
+The current implementation does not keep refresh tokens. Session expiry is bounded
+by token expiry and the server limit; staff reauthenticate when it expires.
+
+The global web proxy checks the actual server session before protected page, RSC
+and browser API rendering. Individual handlers and the Nest global guard recheck
+independently. Only explicit sign-in/logout/health and static resources are public.
+Preview is a separate non-production, explicit opt-in path, never an outage fallback.
 
 ## API configuration
 
-Existing DATABASE_URL and database settings apply. Also set:
+- CONSOLE_OIDC_ISSUER: exact HTTPS staff-realm issuer.
+- CONSOLE_OIDC_CLIENT_ID / CONSOLE_OIDC_CLIENT_SECRET: confidential client.
+- CONSOLE_OIDC_AUDIENCE: expected access-token audience.
+- CONSOLE_STAFF_ROLES: explicit console-entry roles.
+- CONSOLE_SESSION_ENCRYPTION_KEY: 64 hexadecimal characters from 32 random bytes.
+- DATABASE_URL and existing database settings for native deployments.
 
-- CONSOLE_OIDC_ISSUER: exact HTTPS Keycloak staff-realm issuer
-- CONSOLE_OIDC_CLIENT_ID / CONSOLE_OIDC_CLIENT_SECRET: confidential introspection client
-- CONSOLE_OIDC_AUDIENCE: required access-token audience
-- CONSOLE_STAFF_ROLES: explicit comma-separated permitted staff roles
-- CONSOLE_SESSION_ENCRYPTION_KEY: 64 hex characters from 32 cryptographically random bytes
-- CONSOLE_RUN_MIGRATIONS: true for a controlled migration rollout, false normally
-- CONSOLE_CREDIT_READS_ENABLED: true only after verifying owner permissions
-- CONSOLE_CREDIT_URL: HTTPS origin only, without API path
-- CONSOLE_CREDIT_READ_ROLES: explicit roles allowed to read credit evidence
+The introspection response must expose active=true, iss, sub, aud, exp and staff
+roles in realm_access or the configured audience's resource_access. An nbf claim,
+when present, must not be in the future. Staff MFA is configured at the identity
+provider, not bypassed by the console.
 
-Register protocol mappers so introspection includes tenant_ids (string array),
-roles, iss, aud and exp. The selected tenant must be granted in those verified
-claims. The credit service must accept the staff token's issuer/audience and
-must enforce its own authorization. The BFF independently validates row scope.
+Case writes, audit reads, reports and owner reads have their own configured role
+settings. A console-entry role alone does not enable every mutation. See
+`case-workflows.md`, `platform-staff-and-partners.md` and `ingestion-integration.md`.
 
-Migrations are now explicitly registered, including the existing cases migration,
-uuid-ossp prerequisite, tenant index and encrypted sessions. The database account
-must be permitted to install uuid-ossp, or a DBA must preinstall it. Schema sync
-remains disabled. Production database access and migrations were not executed by
-this PR. Verify migrations against a staging backup before production rollout.
+## Optional partner context and native Core integration
 
-## Web configuration
+Set CONSOLE_CORE_URL to the Core HTTPS origin. Fixed staff-workspace endpoints
+receive the verified human actor token. The owner independently verifies the token
+and its operation permissions; no internal service key is substituted.
 
-- CONSOLE_ENV=production for production; development permits loopback HTTP locally
-- CONSOLE_PUBLIC_ORIGIN: exact HTTPS console origin
-- CONSOLE_API_URL: HTTPS BFF origin (or loopback in explicit development)
-- CONSOLE_OIDC_ISSUER / CONSOLE_OIDC_CLIENT_ID / CONSOLE_OIDC_CLIENT_SECRET
-- CONSOLE_LOGIN_COOKIE_KEY: a separate random 64-hex-character key
-- CONSOLE_PREVIEW_ENABLED=false for production
+Partner + API environment is selected after sign-in and verified against Core's
+active records. Context is persisted in the server session with a version. Forms
+carry that version; stale submissions return 409. Case SQL applies both partner
+and environment predicates before pagination when context is selected. Global
+staff views retain historical cases whose partner ownership is unknown rather
+than guessing a mapping.
 
-Register exactly `CONSOLE_PUBLIC_ORIGIN/auth/callback` in the Keycloak client.
-Client authentication and standard authorization-code flow must be enabled;
-require S256 PKCE and staff MFA in the realm. No wildcard redirect URLs.
-Secrets are server-only: never prefix them with NEXT_PUBLIC_. Do not commit them.
+Core's partner-workspace contract and migration must be deployed before native
+onboarding, credentials and customer-list operations can work. Existing Core API
+clients retain partner/environment credential boundaries; they do not gain access
+to the staff console. See `platform-staff-and-partners.md` for owner settings.
 
-The first session implementation deliberately does not retain refresh tokens.
-Sessions expire when their access token expires (maximum eight hours), and every
-API request rechecks active status, roles and tenant grants by introspection.
-Users reauthenticate after expiry. Logout revokes the console session and clears
-the cookie; it does not claim to log out every Keycloak application. During an API
-outage the cookie is still cleared and any remaining row expires with its token.
-Key rotation invalidates old encrypted login flows/sessions; coordinate rotation.
+## Web and Compose configuration
 
-## Limits and completion boundary
+- CONSOLE_ENV=production and CONSOLE_PREVIEW_ENABLED=false.
+- CONSOLE_PUBLIC_ORIGIN: the explicit public HTTPS origin, without an internal port.
+- CONSOLE_API_URL: the API HTTPS origin for native deployments.
+- CONSOLE_OIDC_ISSUER / CONSOLE_OIDC_CLIENT_ID / CONSOLE_OIDC_CLIENT_SECRET.
+- CONSOLE_LOGIN_COOKIE_KEY: an independent random 64-hex-character key.
 
-The case and scoring lists currently load a bounded first page of up to 100 rows;
-UI totals explicitly refer to that result set. Customer, payment, partner,
-configuration, people, alias and production report reads are not fabricated from
-unsafe unscoped APIs. Connect each missing owner contract in a follow-up change.
-Preview remains a separate opt-in route and is never a live-data fallback.
+Register exactly `<CONSOLE_PUBLIC_ORIGIN>/auth/callback` in the existing identity
+client, with confidential-client authorization-code flow and S256 PKCE. Do not use
+wildcard redirects. Secrets are server-only, never NEXT_PUBLIC variables.
+
+The root Compose definition retains one web/API/PostgreSQL resource. Its narrow
+internal transport allows only the explicitly selected `http://api:3005`; it does
+not relax HTTPS validation for public origins, the identity issuer or other owners.
+Its startup runner applies registered console migrations under a database lock.
+Do not run a second migration runner concurrently or enable schema synchronization.
+
+## Upgrade, logout and availability
+
+The PlatformStaffContext migration revokes obsolete tenant-bound sessions while
+preserving cases, notes and audit history. Staff sign in again under the platform
+model. Keep the existing database volume and encryption keys; do not reset storage
+to apply the update. Back up and rehearse production migrations first.
+
+Logout revokes the console session and clears its cookie. It does not claim to end
+every application session at the external identity provider. An infrastructure
+outage blocks access instead of inventing valid identity or serving preview data.
+Removing outward provider labels is UX hygiene, not a replacement for these checks.
