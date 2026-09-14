@@ -39,6 +39,7 @@ create another identity provider or generate an administrative user/password.
 | `CONSOLE_OIDC_ISSUER` | Exact HTTPS realm issuer, e.g. `https://identity.your-domain.tld/realms/staff` |
 | `CONSOLE_OIDC_CLIENT_SECRET` | Secret of the confidential Keycloak client |
 | `CONSOLE_STAFF_ROLES` | Explicit comma-separated roles allowed to enter this console |
+| `CONSOLE_PUBLIC_ORIGIN` | Exact HTTPS console origin, e.g. `https://console.your-domain.tld` |
 | `CONSOLE_OIDC_CLIENT_ID` | Defaults to `mobicred-console`; change to the existing client ID when needed |
 | `CONSOLE_OIDC_AUDIENCE` | Defaults to `mobicred-console`; must match the access token audience |
 
@@ -63,7 +64,7 @@ use `NODE_TLS_REJECT_UNAUTHORIZED=0` or expose the API to work around configurat
 | `SERVICE_PASSWORD_POSTGRES` | PostgreSQL and API database connection |
 | `SERVICE_HEX_64_SESSION` | API encryption for stored staff access tokens |
 | `SERVICE_HEX_64_LOGIN` | Web encryption for short-lived PKCE login-flow cookies |
-| `SERVICE_URL_WEB_3006` | Web public origin, derived from the web domain |
+| `SERVICE_URL_WEB_3006` | Coolify-generated web URL metadata |
 
 The hex variables must contain **64 hexadecimal characters** (32 random bytes),
 not a Base64 string. Coolify's current Compose parser supports these generators.
@@ -148,8 +149,9 @@ immutable production rebuilds, pin reviewed image digests in a follow-up PR.
 
 - **Required variable missing:** fill the highlighted identity variable and verify
   the generated secrets. Startup errors name variables without printing values.
-- **Public origin must be HTTPS:** set the web domain to HTTPS and verify
-  `SERVICE_URL_WEB_3006` is the public URL without the internal container port.
+- **Public origin must be HTTPS:** set `CONSOLE_PUBLIC_ORIGIN` to the public
+  HTTPS origin without the internal container port, for example
+  `https://console.your-domain.tld`.
 - **API migration failure:** inspect API/database logs and credentials. Do not delete
   the volume to fix a migration. Back up and resolve with a reviewed forward change.
 - **No available server:** check all three container health statuses and the web

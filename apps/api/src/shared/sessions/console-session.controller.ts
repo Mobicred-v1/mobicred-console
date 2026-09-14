@@ -5,21 +5,18 @@ import type { StaffRequest } from '../auth/staff-auth.guard';
 @Controller('console-session')
 export class ConsoleSessionController {
   constructor(private readonly sessions: ConsoleSessions) {}
-
   @Post()
   @Header('Cache-Control', 'no-store')
   create(@Req() request: StaffRequest) {
-    if (!request.staff || !request.verifiedToken || request.sessionId) throw new UnauthorizedException('A verified authorization-code access token is required');
+    if (!request.staff || !request.verifiedToken || request.sessionId) throw new UnauthorizedException('Verified staff sign-in is required');
     return this.sessions.create(request.staff, request.verifiedToken);
   }
-
   @Get()
   @Header('Cache-Control', 'no-store')
   context(@Req() request: StaffRequest) {
     const actor = request.staff!;
-    return { staffId: actor.staffId, name: 'Staff operator', tenant: actor.tenantId, roles: actor.roles, expiresAt: actor.expiresAt };
+    return { staffId: actor.staffId, name: 'Staff operator', tenant: actor.tenantId, roles: actor.roles, expiresAt: actor.expiresAt, contextVersion: actor.contextVersion ?? 0, partnerContext: actor.partnerContext ?? null };
   }
-
   @Delete()
   @HttpCode(204)
   async revoke(@Req() request: StaffRequest) {

@@ -1,4 +1,3 @@
 import { NextRequest } from 'next/server';
-import { caseCommandRoute } from '../../../lib/case-command-route';
-export const runtime = 'nodejs';
-export async function POST(request: NextRequest) { return caseCommandRoute(request); }
+import { staffRoute } from '../../../lib/staff-route';
+export async function POST(request: NextRequest) { return staffRoute(request, '/api/v1/console-cases', true); }
