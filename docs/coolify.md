@@ -63,7 +63,7 @@ use `NODE_TLS_REJECT_UNAUTHORIZED=0` or expose the API to work around configurat
 | `SERVICE_PASSWORD_POSTGRES` | PostgreSQL and API database connection |
 | `SERVICE_HEX_64_SESSION` | API encryption for stored staff access tokens |
 | `SERVICE_HEX_64_LOGIN` | Web encryption for short-lived PKCE login-flow cookies |
-| `SERVICE_URL_WEB_3006` | Web public origin, derived from the web domain |
+| `SERVICE_FQDN_WEB_3006` | Web public origin, derived from the web domain |
 
 The hex variables must contain **64 hexadecimal characters** (32 random bytes),
 not a Base64 string. Coolify's current Compose parser supports these generators.
@@ -149,7 +149,7 @@ immutable production rebuilds, pin reviewed image digests in a follow-up PR.
 - **Required variable missing:** fill the highlighted identity variable and verify
   the generated secrets. Startup errors name variables without printing values.
 - **Public origin must be HTTPS:** set the web domain to HTTPS and verify
-  `SERVICE_URL_WEB_3006` is the public URL without the internal container port.
+  `SERVICE_FQDN_WEB_3006` is the public URL without the internal container port.
 - **API migration failure:** inspect API/database logs and credentials. Do not delete
   the volume to fix a migration. Back up and resolve with a reviewed forward change.
 - **No available server:** check all three container health statuses and the web
