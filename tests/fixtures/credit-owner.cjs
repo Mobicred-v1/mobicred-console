@@ -4,7 +4,12 @@ const { randomBytes, randomUUID } = require('node:crypto');
 if (process.env.NODE_ENV !== 'test' || process.env.CONSOLE_DATABASE_TESTS !== 'true') throw new Error('Owner fixtures are restricted to isolated tests');
 const origin = 'http://127.0.0.1:4500'; let mode = 'valid'; let coreMode = 'valid';
 const partners = new Map(); const receipts = new Map();
-const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
+const json = (res, status, body) => {
+  // Match Core's production ResponseEnvelopeInterceptor, not just its controller return value.
+  const isCoreSuccess = res.req.url.startsWith('/internal/staff/partner-workspace') && status >= 200 && status < 300;
+  const value = isCoreSuccess ? { success: true, data: body, meta: { requestId: 'fixture', correlationId: 'fixture', timestamp: new Date().toISOString() } } : body;
+  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value));
+};
 const stamp = () => new Date().toISOString();
 function seed(code, name) {
   const p = { partnerId: randomUUID(), partnerCode: code, displayName: name, legalName: null, status: 'ACTIVE', countryCodes: ['CI'], updatedAt: stamp() };
@@ -43,7 +48,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { schemaVersion: 1, ...paginate(items, url), observedAt: stamp() });
     }
     if (req.method === 'POST' && tail[0] === 'commands') {
-      const command = await payload(req); const key = req.headers['idempotency-key'];
+      const command = await payload(req); const key = req.headers['x-idempotency-key'];
       if (!/^[0-9a-f-]{36}$/i.test(key || '') || !command.partnerCode || !command.tenantId || !command.reason || command.reason.length < 10) return json(res, 400, {});
       const keyScope = `${actor.sub}:${key}`; const serialized = JSON.stringify(command);
       if (receipts.has(keyScope)) { const old = receipts.get(keyScope); return old.body === serialized ? json(res, 201, { ...old.result, replayed: true, secretAvailable: false }) : json(res, 409, {}); }
