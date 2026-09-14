@@ -30,6 +30,7 @@ jobs:
             SERVICE_HEX_64_SESSION: randomBytes(32).toString('hex'),
             SERVICE_HEX_64_LOGIN: randomBytes(32).toString('hex'),
             SERVICE_URL_WEB_3006: 'https://console.example.test:8443',
+            CONSOLE_PUBLIC_ORIGIN: 'https://console.example.test:8443',
             CONSOLE_OIDC_ISSUER: 'https://identity.example.test:8443/realms/staff',
             CONSOLE_OIDC_CLIENT_ID: 'mobicred-console',
             CONSOLE_OIDC_CLIENT_SECRET: randomBytes(32).toString('hex'),
@@ -52,7 +53,7 @@ jobs:
         run: docker compose --env-file .compose-test/env -f docker-compose.yml config --format json | node tests/compose/check-config.cjs
       - name: Build the exact production image targets
         run: docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml build
-      - name: Cold-start the production stack with an isolated TLS edge
+      - name: Cold-start production stack with isolated TLS edge
         run: docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml up -d --wait --wait-timeout 240
       - name: Check non-root runtime and absence of build secrets
         run: |
@@ -80,7 +81,7 @@ jobs:
           path: artifacts/compose/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Remove only the isolated CI stack and ephemeral secrets
+      - name: Remove only isolated CI resources
         if: always()
         run: |
           docker compose --project-name console-ci --env-file .compose-test/env -f docker-compose.yml -f tests/compose/compose.test.yml down --volumes --remove-orphans || true

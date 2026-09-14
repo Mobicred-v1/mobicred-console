@@ -1,87 +1,105 @@
-# Deploy once in Coolify
+# One Coolify resource for Mobicred Console
 
-This repository is one **Git-based Docker Compose Application** containing three
-long-running services: `web`, `api`, and `postgres`. Do not create separate Coolify
-applications or a separate database. Do not choose Docker Compose Empty: that
-resource does not check out this repository, while these images need its source.
+The repository builds one Git-based Docker Compose Application containing `web`,
+`api` and `postgres`. It does not require separate frontend, API or database
+resources. Do not choose Docker Compose Empty, which does not check out the source
+needed by the root Dockerfile.
 
-## One-time resource setup
+## Create once, then redeploy the same resource
 
-1. In your project/environment, add a resource from the GitHub repository
-   `Mobicred-v1/mobicred-console` (GitHub App or public repository).
-2. Select branch **main**, build pack **Docker Compose**, Base Directory **/**,
-   and Docker Compose Location **/docker-compose.yml**. Save/load the definition.
-3. On **web only**, set an HTTPS domain, for example
-   `https://console.your-domain.tld:3006`. The `:3006` selects the internal target
-   port; visitors still use `https://console.your-domain.tld`. Configure DNS to
-   point to your Coolify server and let Coolify issue the certificate.
-4. Enter the identity settings below under Environment Variables. Keep Raw Compose
-   Deployment off. Disable **Inject Build Args to Dockerfile**: no application
-   secrets or environment-specific URLs are needed to build these images.
-   Leave custom build/start commands empty. Keep Connect To Predefined Network
-   off unless separately reviewed cross-resource networking is genuinely needed.
-5. Deploy. PostgreSQL becomes healthy, API startup applies pending migrations,
-   API database readiness passes, and then the web app starts. No terminal command,
-   manual database creation, migration resource, or seed command is required.
-
-After this setup, redeploy this same resource. With the GitHub integration and
-Auto Deploy enabled, changes promoted into main can trigger redeployments. Never
-point the production resource at a feature branch. PR previews must use a separate
-resource/volume/identity client, not production storage.
-
-## Required identity settings
-
-The console deliberately reuses your existing Keycloak staff realm; it does not
-create another identity provider or generate an administrative user/password.
-
-| Coolify variable | Value |
+| Setting | Value |
 |---|---|
-| `CONSOLE_OIDC_ISSUER` | Exact HTTPS realm issuer, e.g. `https://identity.your-domain.tld/realms/staff` |
-| `CONSOLE_OIDC_CLIENT_SECRET` | Secret of the confidential Keycloak client |
-| `CONSOLE_STAFF_ROLES` | Explicit comma-separated roles allowed to enter this console |
-| `CONSOLE_OIDC_CLIENT_ID` | Defaults to `mobicred-console`; change to the existing client ID when needed |
-| `CONSOLE_OIDC_AUDIENCE` | Defaults to `mobicred-console`; must match the access token audience |
+| Git repository | Mobicred-v1/mobicred-console |
+| Branch | main |
+| Build pack | Docker Compose |
+| Base Directory | / |
+| Docker Compose Location | /docker-compose.yml |
+| Raw Compose Deployment | Off |
+| Inject Build Args to Dockerfile | Off |
+| Custom build/start commands | Empty |
 
-In Keycloak, use a confidential OpenID Connect client with Standard Flow and S256
-PKCE. Register the **exact** redirect URI
-`https://console.your-domain.tld/auth/callback` and the exact web origin
-`https://console.your-domain.tld` (no internal `:3006` and no wildcard redirect).
-Configure token/introspection mappers so the access token exposes the required
-`aud`, staff roles in `realm_access` or the configured audience's `resource_access`,
-and a `tenant_ids` string array or `tenant_id` string. The login form's tenant must
-be included in those verified grants. Selecting a tenant does not create access.
+Assign an HTTPS domain to **web only**. For example, the Coolify Domains entry
+`https://console.your-domain.tld:3006` targets the internal web port 3006, while
+visitors use `https://console.your-domain.tld`. Point DNS at the Coolify server.
+Do not assign an API/database domain or publish their ports. Leave Connect To
+Predefined Network off unless separately reviewed cross-resource networking is needed.
 
-Issuer and audience comparison is exact. The API and web containers must reach
-the HTTPS issuer and trust its TLS certificate. The Compose HTTP exception applies
-only to `http://api:3005`; it never applies to Keycloak or owner services. Do not
-use `NODE_TLS_REJECT_UNAUTHORIZED=0` or expose the API to work around configuration.
+Set **CONSOLE_PUBLIC_ORIGIN explicitly** to the actual browser HTTPS origin,
+without the internal :3006 port. The latest origin fix is retained: generated
+SERVICE_URL_WEB_3006 metadata is not the application's security origin.
 
-## Values Coolify generates and keeps
+## Required staff identity configuration
 
-| Generated variable | Used by |
+Mobicred staff sign in once, globally. There is **no tenant field and no tenant
+claim requirement**. Partner/environment context is selected after authentication.
+The existing identity provider is reused; the stack creates neither another
+identity server nor an unrestricted administrator account.
+
+| Variable | Value |
 |---|---|
-| `SERVICE_PASSWORD_POSTGRES` | PostgreSQL and API database connection |
-| `SERVICE_HEX_64_SESSION` | API encryption for stored staff access tokens |
-| `SERVICE_HEX_64_LOGIN` | Web encryption for short-lived PKCE login-flow cookies |
-| `SERVICE_URL_WEB_3006` | Web public origin, derived from the web domain |
+| CONSOLE_PUBLIC_ORIGIN | Exact public HTTPS origin, e.g. https://console.your-domain.tld |
+| CONSOLE_OIDC_ISSUER | Exact HTTPS staff-realm issuer |
+| CONSOLE_OIDC_CLIENT_SECRET | Existing confidential client's secret |
+| CONSOLE_STAFF_ROLES | Explicit comma-separated roles permitted to enter the console |
+| CONSOLE_OIDC_CLIENT_ID | Defaults to mobicred-console; match the existing client |
+| CONSOLE_OIDC_AUDIENCE | Defaults to mobicred-console; match the token audience |
 
-The hex variables must contain **64 hexadecimal characters** (32 random bytes),
-not a Base64 string. Coolify's current Compose parser supports these generators.
-Check that all three generated secrets are populated and that the generated URL
-has HTTPS before the first deploy. On older Coolify versions without hex generators,
-supply independent `openssl rand -hex 32` values in those two variables once.
+Use confidential-client authorization-code flow with S256 PKCE. Register the exact
+callback `https://console.your-domain.tld/auth/callback` and the public origin,
+without the internal port and without wildcard redirect URLs. Introspection must
+expose active status, issuer, subject, audience, expiry and staff roles. Configure
+MFA at the staff identity provider. Do not create per-partner console identities
+or wildcard tenant claims to approximate platform staff access.
 
-Never regenerate these values on an ordinary redeploy. Changing only the database
-password environment does not change a password in an existing PostgreSQL volume.
-Changing the session key invalidates decryption of existing sessions; coordinate
-rotation and session revocation. The web container does not receive the database
-password or session-encryption key. The API does not receive the login-cookie key.
+The API and web containers must reach and trust the HTTPS issuer. The internal
+Compose transport exception applies only to `http://api:3005`; it does not relax
+TLS for the issuer or owner services. Never disable TLS verification to fix setup.
 
-## Enable only the capabilities you intend to authorize
+## Generated persistent secrets
 
-The stack starts with owner reads and case writes disabled, matching the existing
-application's fail-closed defaults. Sign-in and scoped read workflows remain
-available. To enable the implemented case workflow, set:
+The Compose definition requests these Coolify-generated values:
+
+| Variable | Purpose |
+|---|---|
+| SERVICE_PASSWORD_POSTGRES | Shared by PostgreSQL and the API database connection |
+| SERVICE_HEX_64_SESSION | API encryption for stored staff tokens |
+| SERVICE_HEX_64_LOGIN | Web encryption for short-lived login-flow cookies |
+| SERVICE_URL_WEB_3006 | Coolify routing metadata; not a replacement for CONSOLE_PUBLIC_ORIGIN |
+
+Verify the password and both independent encryption keys are populated before the
+first deployment. Each encryption key is 64 hexadecimal characters (32 random
+bytes), not Base64. On older Coolify installations that do not populate the hex
+generators, enter two independent values from `openssl rand -hex 32` once.
+
+Keep these values stable across normal redeployments. Replacing a database password
+variable does not change the password stored in an existing PostgreSQL volume.
+Coordinate credential/key rotation and session revocation; do not delete storage.
+The web container does not receive the database password or token-encryption key.
+The API does not receive the login-cookie encryption key.
+
+## Connect native partner administration
+
+Set **CONSOLE_CORE_URL** on the API to the Core HTTPS origin hosting
+`/internal/staff/partner-workspace`. Core's corresponding staff contract and
+PartnerWorkspaceCommands migration must be deployed using Core's release process.
+Deploying this console does not deploy or migrate Core.
+
+The console delegates the verified staff token. Core independently checks the
+signature, staff issuer, subject, expiry, role and audience. Core's
+PARTNER_WORKSPACE_AUDIENCE defaults to mobicred-console and must match the staff
+token. The current native partner roles are ADMIN/OPS for reads and onboarding;
+ADMIN is required for credential issuance, rotation and revocation. These roles
+must also satisfy console entry permission. External API clients retain their own
+partner/environment keys, source-IP policies and request-signing rules.
+
+Without the compatible Core contract, partner operations are unavailable, not
+simulated. There is no fallback to the older unaudited admin mutations. See
+`platform-staff-and-partners.md` for the full ownership and command boundaries.
+
+## Enable other capabilities deliberately
+
+Case writes and optional credit/ingestion reads default disabled. Configure the
+appropriate staff roles to enable investigation operations:
 
 ```dotenv
 CONSOLE_CASE_WORKFLOWS_ENABLED=true
@@ -90,88 +108,75 @@ CONSOLE_AUDIT_READ_ROLES=YOUR_AUDIT_READER_ROLE
 CONSOLE_CASE_REPORT_ROLES=YOUR_REPORT_READER_ROLE
 ```
 
-Use real roles from your staff realm; each allowed role must also satisfy the
-console entry-role policy. API startup refuses enabled write/read gates without
-their explicitly configured roles. These commands affect investigations, not money.
+Optional Credit Intelligence reads use CONSOLE_CREDIT_URL (HTTPS origin only),
+CONSOLE_CREDIT_READS_ENABLED / CONSOLE_CREDIT_READ_ROLES and
+CONSOLE_INGESTION_READS_ENABLED / CONSOLE_INGESTION_READ_ROLES. Each owner must accept
+the delegated token independently. Enabled write/read gates require explicit role
+configuration. Missing financial, alias and other owner capabilities remain
+unconnected; deployment cannot invent them. See `implementation-coverage.md`.
 
-Optional Credit Intelligence reads use `CONSOLE_CREDIT_URL` (HTTPS origin only),
-`CONSOLE_CREDIT_READS_ENABLED` / `CONSOLE_CREDIT_READ_ROLES` and
-`CONSOLE_INGESTION_READS_ENABLED` / `CONSOLE_INGESTION_READ_ROLES`. The owner must
-independently accept the delegated staff token. Full owner integrations that are
-still absent remain absent; Compose does not invent or bypass them. See
-`implementation-coverage.md` and `ingestion-integration.md`.
+## Startup and updates
 
-## Containers and lifecycle
+Deploy the single resource. PostgreSQL becomes healthy; the API validates its
+configuration, safely encodes database credentials, acquires a PostgreSQL advisory
+lock and applies pending registered console migrations in one transaction. Nest
+starts only after that succeeds. Web starts after database-backed API readiness.
+There is no manual seed, schema-reset or separate one-shot migration resource.
 
-- Root-context multi-stage builds respect the Bun workspace lockfile. API runtime
-  contains compiled Nest code and production API dependencies; web uses Next.js
-  standalone output with monorepo tracing plus static/public assets.
-- Both application processes run as UID 1000, with read-only root filesystems,
-  bounded temporary directories, dropped capabilities and graceful shutdown.
-- The production definition publishes **no host ports**. Coolify routes only the
-  web domain to 3006. API 3005 and PostgreSQL 5432 are internal service addresses.
-- API startup validates configuration, URL-encodes database credentials, acquires
-  a PostgreSQL advisory lock, and runs pending registered migrations in one
-  transaction before starting Nest. Restarts do not repeat applied migrations.
-  Migration failure prevents API readiness and web startup. There is no schema
-  synchronization, destructive reset, or automatic downgrade.
-- `/api/v1/health/ready` checks API memory and PostgreSQL connectivity; `/health`
-  on web checks that API readiness, without exposing credentials or diagnostics.
-  Health reports infrastructure readiness, not successful Keycloak sign-in or
-  full owner connectivity. Docker health status alone does not restart a hung
-  process; the restart policy applies when a process exits.
+The PlatformStaffContext upgrade revokes obsolete sessions so staff sign in under
+the new global model. Historical cases, notes and audit records are preserved.
+Keep the same volume and encryption keys when redeploying. Back up and rehearse
+production migrations before applying them.
 
-Keep only one API replica during initial operation. Serialized migration startup
-protects competing startup runners, but release migrations must still be reviewed
-for compatibility with any old container serving requests. This is not a promise
-of zero-downtime schema changes. Large migrations may need a separately reviewed
-rollout beyond the startup runner's two-minute lock/statement timeouts.
+The web image uses monorepo-aware Next standalone output and its static assets.
+Both application images run non-root with read-only root filesystems, bounded
+temporary directories and dropped capabilities. The definition publishes no host
+ports. `/api/v1/health/ready` checks the API and PostgreSQL; web `/health` returns a
+minimal readiness response for that dependency chain. These are not proof of a
+working identity provider or healthy external owners.
 
-## Persistence, backup and updates
+Restart policy handles exited processes; unhealthy status alone is not a promise
+that Docker will restart a hung process. Keep one API replica initially. Startup
+serialization does not make arbitrary schema changes zero-downtime compatible;
+large migrations need a reviewed rollout outside the startup runner's timeouts.
 
-`console-postgres` is a Compose-managed named volume mounted at PostgreSQL 16's
-`/var/lib/postgresql/data`. It survives normal image builds and container recreation.
-Coolify scopes volume names to the resource. Keep the same resource and volume;
-deleting it or running `docker compose down --volumes` removes data.
+After the one-time setup, redeploy this resource for future main releases. With
+GitHub/Auto Deploy configured, approved main changes can trigger deployments. A
+merged PR is not itself evidence that the running environment has updated.
 
-A volume is **not a backup**. Configure scheduled PostgreSQL backups and test a
-restore before using real operational data. The bundled database's bootstrap role
-also runs migrations; installations needing separate migration/runtime database
-roles should provision and review that privilege separation before production use.
-Do not upgrade the PostgreSQL major version by simply changing its image tag.
+## Persistence and operational responsibilities
 
-Node and PostgreSQL images track supported major-version tags; Bun and application
-packages are pinned/locked. Review base-image updates as part of deployment. For
-immutable production rebuilds, pin reviewed image digests in a follow-up PR.
+`console-postgres` is a named PostgreSQL 16 volume mounted at
+`/var/lib/postgresql/data`. Normal container recreation preserves it. Deleting the
+resource's storage or using `docker compose down --volumes` destroys that data.
+A persistent volume is not a backup: schedule backups and test restore before
+storing real operational records.
+
+The bundled database bootstrap role also runs migrations. Environments requiring
+separate migration/runtime database principals must provision and review that
+privilege separation. Do not upgrade a PostgreSQL major version by only replacing
+its image tag. Review base-image updates and pin approved digests when immutable
+rebuilds are required. None of these source changes modifies a live environment.
 
 ## Troubleshooting
 
-- **Required variable missing:** fill the highlighted identity variable and verify
-  the generated secrets. Startup errors name variables without printing values.
-- **Public origin must be HTTPS:** set the web domain to HTTPS and verify
-  `SERVICE_URL_WEB_3006` is the public URL without the internal container port.
-- **API migration failure:** inspect API/database logs and credentials. Do not delete
-  the volume to fix a migration. Back up and resolve with a reviewed forward change.
-- **No available server:** check all three container health statuses and the web
-  domain's target port 3006. Do not create an API domain or publish database ports.
-- **Login denied:** check exact issuer/audience, client secret, role mappings,
-  verified tenant grant, TLS reachability and the exact callback URI.
+A required-variable error should be fixed in the resource settings, not by adding
+secrets to Git or build arguments. Origin errors require the exact public HTTPS
+origin, not the container port or generated URL metadata. Migration errors require
+log/credential/history review and a safe forward fix, not volume deletion. Login
+denial requires checking issuer/audience/role mappings, expiry, callback and TLS;
+a tenant mapper is not required. Partner unavailability requires the matching Core
+contract, its migration, compatible staff permissions and CONSOLE_CORE_URL.
 
-## Verification
+## Verification boundary
 
-`Console compose checks` builds both actual images, cold-starts this definition
-against a fresh PostgreSQL volume, tests a production-mode HTTPS fixture login,
-static assets, secure sessions, persisted audited cases, container/database
-recreation, migration idempotence and database-failure readiness/recovery. The
-synthetic edge/IdP exists only in `tests/compose/compose.test.yml` and is excluded
-from production images. It does not replace real Coolify/Keycloak deployment testing.
-The ordinary unit, policy, database and browser workflows remain in place.
+Console compose checks build the actual images, cold-start a fresh database, test
+HTTPS fixture sign-in, static assets, secure sessions, persisted cases, migration
+idempotence, container/database recreation and readiness failure/recovery. The
+synthetic identity/edge fixture is isolated to the CI overlay and excluded from
+production images. These checks do not claim live Coolify or Core connectivity.
 
-## Official references
-
-- Coolify Git-based Compose setup, generated values, domains and networking:
-  https://coolify.io/docs/applications/builds/docker-compose
-- Coolify health checks: https://coolify.io/docs/applications/configuration/health-checks
-- Next.js standalone and monorepo tracing:
-  https://nextjs.org/docs/app/api-reference/config/next-config-js/output
-- Docker startup order: https://docs.docker.com/compose/how-tos/startup-order/
+Official references: https://coolify.io/docs/applications/builds/docker-compose,
+https://coolify.io/docs/applications/configuration/health-checks,
+https://nextjs.org/docs/app/api-reference/config/next-config-js/output,
+https://docs.docker.com/compose/how-tos/startup-order/.
