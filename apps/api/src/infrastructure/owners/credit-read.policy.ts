@@ -10,3 +10,4 @@ export function scopedCreditRows(value: unknown, tenantId?: string): CreditRow[]
     const text = (key: string) => typeof row[key] === 'string' ? (row[key] as string).slice(0, 255) : '';
     return { id: text('id'), tenantid: text('tenantid'), partnercode: text('partnercode'), subjectid: text('subjectid'), productcode: text('productcode'), score: row.score, band: text('band'), modelversion: text('modelversion'), featuresnapshotid: text('featuresnapshotid'), decidedat: text('decidedat'), updatedAt: text('updatedAt') };
   });
+}
