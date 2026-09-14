@@ -1,37 +1,46 @@
 # Console implementation coverage
 
-All fourteen visual workspaces are represented. Visual coverage is not a claim
-that every owner service already exposes a safe staff API. Live integrations
-below describe implemented code; production connectivity requires deployment
-configuration and has not been verified by fixture-based CI.
+The fourteen workspaces are represented visually. The table distinguishes actual
+code integration from absent owner contracts. Tests use isolated identities and
+owner fixtures; a green build is not evidence of a live production deployment.
 
-| Workspace | Implemented UI | Implemented live integration / boundary |
+## Cross-cutting implementation
+
+Platform-wide Mobicred staff sign-in has no tenant input or tenant claim requirement.
+A global verified-session boundary protects pages, record paths, RSC and browser
+APIs, with independent backend authorization. Working context is optional after
+sign-in, persisted as partner + API environment with a context version. Stale forms
+cannot silently execute in a new context. Staff-facing identity language is neutral.
+
+| Workspace | Current implementation | Boundary / remaining work |
 |---|---|---|
-| Overview | Cases, attention queue, source health, module navigation | Authorized recent case snapshot; unconnected service health remains not observed |
-| Investigation inbox | Search, filters, pagination, detail, notes, create/assign/resolve/reopen | Postgres-backed, versioned, idempotent and transactionally audited case commands |
-| Customers | Customer context, accounts, KYC, activity, related records | Tenant-scoped owner staff contract still required; unscoped customer search is not connected |
-| Payments | Source-by-source states, references, timeline, reconciliation context | Scoped owner contract still required; no unsafe retry or force-success command |
-| Credit & risk | Score, model, evidence and execution boundary | Optional scoped Credit Intelligence admin-search adapter with bounded read transport |
-| Partners | Tenant, credential metadata and access-policy preview | Complete scoped inventory/credential lifecycle contract still required |
-| Data ingestion | Searchable source quality, historical counts, consent, trust, activity and freshness | Optional existing Credit Intelligence source-quality adapter; verified tenant query and every row checked; no reprocessing or raw payloads |
-| Aliases | Directory and mapping consistency preview | Owner staff contract still required |
-| Operations | Effective adapter policy/readiness cards; specialist-tool preview | Console capability metadata only. Reachability remains untested; detailed owner health/recovery and tool links still required |
-| Configuration | Effective console gates, configured state and current-session permissions | Read-only console capability policy; secrets/origins excluded; mutable owner configuration still unconnected |
-| Approvals | Intent, before/after, requester/approver boundary preview | Owner-enforced approval and execution contracts still required |
-| People & access | Current identity, tenant, roles, expiry and effective permissions | Verified current staff session only; full staff/agency directory is not connected |
-| Audit | Filterable records and case links | Append-only case-mutation audit feed; not yet a cross-service audit archive |
-| Reports | Report scopes and metadata | Tenant-wide investigation workload counts; financial reports and audited exports not connected |
+| Overview | Authorized case snapshot and operational navigation | Not a financial ledger or a comprehensive live health dashboard |
+| Investigation inbox | Persisted create, search, pagination, assignment, notes, resolve/reopen; global and partner/environment views | Versioned, idempotent and transactionally audited; owner slices may remain unavailable |
+| Customers | Customer investigation design; native partner-linked customer references are available in each partner workspace | General customer search and full authoritative customer/account profiles remain unconnected |
+| Payments | Source-state comparison and reconciliation design | Scoped owner reads and governed financial recovery remain unconnected; no force-success or balance edits |
+| Credit & risk | Optional delegated Credit Intelligence read adapter | Owner authorization and selected-context verification required; no approval/disbursement shortcut |
+| Partners | Native partner search/profile, create with first environment and policy, add environment, issue/rotate/revoke credentials, customer links and IP/scope policy display | Requires deployed Core staff contract/migration and CONSOLE_CORE_URL; Core owns all partner records; existing policy editing, usage/billing/webhook administration are not added |
+| Data ingestion | Optional source-quality reads with counts, consent, trust, activity and snapshot freshness | Scoped owner verification; no raw payload browsing or reprocessing command |
+| Aliases | Mapping and consistency design | Staff owner contract remains unconnected |
+| Operations | Effective adapter policy and readiness configuration | Not an actual owner health probe; recovery commands and technical tool integrations remain unconnected |
+| Configuration | Read-only effective console flags, configured state and current permissions | No arbitrary secret/env editor or mutable owner configuration |
+| Approvals | Review, requester and approver design | Cross-service maker-checker execution contract remains unconnected |
+| People & access | Verified current identity, roles, expiry and working context | Full staff/agency directory, provisioning and role-grant workflows remain unconnected |
+| Audit | Persisted case audit feed with global/selected-context filtering | Partner command receipts remain Core-owned; a unified cross-service audit archive/UI is not yet connected |
+| Reports | Persisted investigation workload reporting in current scope | Financial reporting and audited bulk exports remain unconnected |
 
-## Delivery order
+## Deployment and upgrade
 
-Feature and fix PRs merge only into develop. Promote develop into staging through
-a checked PR, then staging into main through another checked PR. Preserve history
-with merge commits. See AGENTS.md and docs/release-flow.md.
+The root Docker Compose stack retains one Coolify resource for web, API and
+persistent PostgreSQL. CONSOLE_PUBLIC_ORIGIN is explicit and the latest origin fix
+is preserved. The console migration revokes obsolete sessions without discarding
+historical operational records. Existing keys and volumes must be retained.
 
-## Runtime setup
+Deploying Console does not deploy or migrate Core. Core's new partner-workspace
+contract must be released separately, using the existing staff issuer and compatible
+audience/roles. Main/staging release divergence in another repository must be
+reviewed rather than silently overwritten. See `platform-staff-and-partners.md`.
 
-Do not deploy preview mode as production. Configure real HTTPS origins,
-Keycloak protocol mappers, role grants, encryption keys and database migrations
-before enabling workflows. See docs/ingestion-integration.md for source-quality
-reads. No production credentials or private infrastructure addresses are included
-in this repository. CI identities and data are isolated, explicitly synthetic fixtures.
+All feature/fix PRs target develop; promotions proceed develop -> staging -> main
+with current-candidate checks and merge commits. No source change alone asserts
+that a live service, production credential or customer record has been modified.

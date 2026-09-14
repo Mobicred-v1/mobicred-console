@@ -1,30 +1,44 @@
-# Verified staff boundary
+# Verified Mobicred staff boundary
 
-Staff routes no longer treat the presence of a Bearer header as authentication.
-The BFF introspects the access token with the configured Keycloak confidential
-client on every request. Identity outages fail closed; tokens are not logged.
+Authentication answers whether the actor is authorized Mobicred staff. It does not
+ask which partner they work for. The login has no tenant field and requires no
+tenant claims. The token must be active, signed/verified by the configured identity
+service, use the exact issuer and audience, have a subject and valid expiry, and
+carry an explicitly permitted staff role.
 
-Required API environment:
+Browser cookies contain only an opaque HttpOnly session identifier. Server-side
+session records encrypt tokens and retain optional working context. The global
+web proxy checks this session before protected pages, nested paths, RSC/prefetch
+responses or browser API handlers can render. Backend guards independently enforce
+identity and operation permissions. Forged, missing, revoked and expired sessions
+are rejected. Identity or database failures do not expose the navigation shell.
 
-- CONSOLE_OIDC_ISSUER: exact HTTPS staff realm issuer
-- CONSOLE_OIDC_CLIENT_ID and CONSOLE_OIDC_CLIENT_SECRET: confidential introspection client
-- CONSOLE_OIDC_AUDIENCE: expected access-token audience
-- CONSOLE_STAFF_ROLES: explicit comma-separated permitted staff roles
+Only the explicit authentication/logout/health routes and static build resources
+are public. Preview is disabled in production, not an anonymous alternate console.
+Already-open tabs revalidate on focus/restore and at the session boundary; they
+lock or reauthenticate on failure instead of continuing to accept mutations.
 
-The introspection response must include active=true, iss, sub, aud, exp, roles
-in realm_access or resource_access[CONSOLE_OIDC_AUDIENCE], and a tenant_ids
-string array (or tenant_id string). Configure the corresponding Keycloak
-protocol mappers. A requested x-mobicred-tenant-id must be granted by those
-verified claims. Never assign wildcard tenants or infer grants from a selector.
-HTTP is permitted only for loopback identity services outside production.
+## Context is not a role grant
 
-Case list, count, detail and composed workspace queries include tenant scope in
-the database predicate, before pagination. Missing scope fails closed. Case IDs
-belonging to another tenant are indistinguishable from missing IDs.
+The default staff workspace spans Mobicred's partners. A selected partner and API
+environment is validated against Core and narrows operations. Both values are used
+for record predicates because environment identifiers can repeat across partners.
+Clearing context restores global work without another login.
 
-Generic case mutations are temporarily disabled. They must be replaced by
-role-checked, transactionally audited, concurrency-safe commands before use.
-This intentionally removes the unsafe scaffold write path instead of calling
-it production-ready. No owner service is made writable by this change.
+Context changes increment a persisted session version. Mutation forms must present
+the version they loaded. Stale forms fail with 409, and case transactions recheck
+and lock the session before committing. Partner commands carry an explicit owner
+target and receive independent owner authorization. Caller headers never grant a
+staff role, bypass an owner policy or create an arbitrary tenant identity.
 
-Checks: API compilation and Jest tests; web compilation and ESLint in CI.
+## Controlled writes and secrets
+
+Case changes, notes, audit records and receipts commit atomically with idempotency
+and optimistic version checks. Partner mutations execute in Core's native records
+with durable owner receipts. API secrets are returned once and excluded from
+normal inventories, browser storage, receipt replays and audit metadata.
+
+Neutral sign-in wording does not conceal the external identity provider or replace
+patching and authorization. The production security controls are the verified
+session, origin checks, least-privilege permissions and owner-enforced commands.
+See `platform-staff-and-partners.md`, `live-integration.md` and `coolify.md`.
