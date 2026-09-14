@@ -150,7 +150,11 @@ const sections = ['overview', 'inbox', 'customers', 'payments', 'credit', 'partn
     await page.getByLabel('Reason', { exact: true }).fill('Revoke the synthetic integration credential.');
     await page.getByRole('dialog').getByRole('button', { name: 'Revoke API credential', exact: true }).click();
     await page.getByRole('dialog').getByRole('heading', { name: 'Operation recorded', exact: true }).waitFor(); await page.keyboard.press('Escape');
-    assert.equal(await page.locator('tbody .badge').filter({ hasText: /^REVOKED$/ }).count(), 2);
+    // The command receipt renders before router.refresh completes the owner read.
+    // Wait for both revoked rows; do not weaken the expected final inventory.
+    const revokedRows = page.locator('tbody .badge').filter({ hasText: /^REVOKED$/ });
+    await revokedRows.nth(1).waitFor();
+    assert.equal(await revokedRows.count(), 2);
     await page.screenshot({ path: 'artifacts/partner-credential-lifecycle.png', fullPage: true });
     await visit('/partners/alpha?tab=customers');
     await page.getByText('alpha-customer-one', { exact: true }).waitFor(); assert.equal(await page.getByText('beta-customer-one', { exact: true }).count(), 0);
