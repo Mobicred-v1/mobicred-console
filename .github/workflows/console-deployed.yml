@@ -1,0 +1,32 @@
+name: Deployed console observations
+on:
+  pull_request:
+    branches: [develop, staging, main]
+    paths:
+      - scripts/deployed-console-check.cjs
+      - .github/workflows/console-deployed.yml
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deployed-console-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  observe:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Observe deployed anonymous boundaries (not candidate CI)
+        run: node scripts/deployed-console-check.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployed-console-observations
+          path: artifacts/deployed-console-boundary.json
+          retention-days: 7
