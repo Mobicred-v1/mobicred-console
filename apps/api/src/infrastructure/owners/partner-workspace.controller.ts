@@ -1,8 +1,10 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Header, Headers, Param, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, Headers, Param, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ConsoleSessions } from '../../shared/sessions/console-sessions.service';
 import type { StaffRequest } from '../../shared/auth/staff-auth.guard';
 import type { PartnerContext } from '../../shared/auth/staff-token.policy';
 import { partnerOwner, partnerPermissions, safePartnerCode } from './partner-workspace.client';
+
+/** Global staff administration. The optional session context filters operations, not staff grants. */
 @Controller('console-partners')
 export class PartnerWorkspaceController {
   constructor(private readonly sessions: ConsoleSessions) {}
@@ -30,17 +32,11 @@ export class PartnerWorkspaceController {
   command(@Req() req: StaffRequest, @Headers('idempotency-key') key: string, @Body() command: unknown) { return partnerOwner(req, 'command', { key, command }); }
   @Get(':code/context-options')
   @Header('Cache-Control', 'no-store')
-  async options(@Req() req: StaffRequest, @Param('code') code: string) {
-    const detail = await partnerOwner(req, 'detail', { code });
-    return { partner: detail.partner, tenants: detail.tenants, totals: detail.totals };
-  }
+  async options(@Req() req: StaffRequest, @Param('code') code: string) { const detail = await partnerOwner(req, 'detail', { code }); return { partner: detail.partner, tenants: detail.tenants, totals: detail.totals }; }
   @Get(':code/customers')
   @Header('Cache-Control', 'no-store')
-  customers(@Req() req: StaffRequest, @Param('code') code: string, @Query('page') page?: string, @Query('q') q?: string) {
-    this.assertContext(req, code); return partnerOwner(req, 'customers', { code, page, q, tenantId: req.staff?.partnerContext?.tenantId });
-  }
+  customers(@Req() req: StaffRequest, @Param('code') code: string, @Query('page') page?: string, @Query('q') q?: string) { return partnerOwner(req, 'customers', { code, page, q }); }
   @Get(':code')
   @Header('Cache-Control', 'no-store')
-  async detail(@Req() req: StaffRequest, @Param('code') code: string) { this.assertContext(req, code); return { ...await partnerOwner(req, 'detail', { code }), permissions: partnerPermissions(req) }; }
-  private assertContext(req: StaffRequest, code: string) { if (req.staff?.partnerContext && req.staff.partnerContext.partnerCode !== code) throw new ForbiddenException('Leave partner context before opening a different partner'); }
+  async detail(@Req() req: StaffRequest, @Param('code') code: string) { return { ...await partnerOwner(req, 'detail', { code }), permissions: partnerPermissions(req) }; }
 }
