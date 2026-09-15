@@ -12,13 +12,14 @@ export async function loadPartners(code?: string, query: Record<string, string |
     const current = await currentSession();
     if (!current) return { data: { ...empty, state: 'unauthorized' } };
     session = current.session;
-    const selectedCode = code ?? session.partnerContext?.partnerCode;
-    if (selectedCode) {
-      if (!/^[a-z0-9][a-z0-9_-]{1,63}$/.test(selectedCode)) throw new ApiFailure(404);
-      const result = await consoleRequest(`/api/v1/console-partners/${selectedCode}`, { sessionId: current.id }) as Pick<PartnerPage, 'partner' | 'tenants' | 'credentials' | 'policies' | 'totals' | 'permissions'>;
-      if (!result.partner || result.partner.partnerCode !== selectedCode || !Array.isArray(result.tenants) || !Array.isArray(result.credentials)) throw new Error('Invalid partner contract');
+    // The route identifies the administration target. A session filter must never
+    // turn /partners into a different route or remove global onboarding.
+    if (code) {
+      if (!/^[a-z0-9][a-z0-9_-]{1,63}$/.test(code)) throw new ApiFailure(404);
+      const result = await consoleRequest(`/api/v1/console-partners/${code}`, { sessionId: current.id }) as Pick<PartnerPage, 'partner' | 'tenants' | 'credentials' | 'policies' | 'totals' | 'permissions'>;
+      if (!result.partner || result.partner.partnerCode !== code || !Array.isArray(result.tenants) || !Array.isArray(result.credentials)) throw new Error('Invalid partner contract');
       const data: PartnerPage = { ...empty, ...result, state: 'live' };
-      if (tab === 'customers') data.customers = await consoleRequest(`/api/v1/console-partners/${selectedCode}/customers?${new URLSearchParams({ page, q })}`, { sessionId: current.id }) as PartnerPage['customers'];
+      if (tab === 'customers') data.customers = await consoleRequest(`/api/v1/console-partners/${code}/customers?${new URLSearchParams({ page, q })}`, { sessionId: current.id }) as PartnerPage['customers'];
       return { data, session };
     }
     const result = await consoleRequest(`/api/v1/console-partners?${new URLSearchParams({ page, q })}`, { sessionId: current.id }) as Pick<PartnerPage, 'items' | 'meta' | 'permissions'>;
@@ -26,6 +27,6 @@ export async function loadPartners(code?: string, query: Record<string, string |
     return { data: { ...empty, ...result, state: 'live' }, session };
   } catch (error) {
     const denied = error instanceof ApiFailure && [401, 403].includes(error.status);
-    return { session, data: { ...empty, state: denied ? 'unauthorized' : 'unavailable', error: denied ? 'Your staff permissions or current partner context do not allow this view.' : 'Partner administration could not be loaded. The Core staff workspace integration must be available.' } };
+    return { session, data: { ...empty, state: denied ? 'unauthorized' : 'unavailable', error: denied ? 'Your staff permissions do not allow partner administration.' : error instanceof ApiFailure && error.status === 404 ? 'This partner could not be found.' : 'Partner administration is temporarily unavailable. Your Mobicred session and the rest of your workspace remain separate.' } };
   }
 }

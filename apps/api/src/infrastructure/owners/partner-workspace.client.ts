@@ -29,8 +29,9 @@ export async function partnerOwner(request: StaffRequest, operation: 'list' | 'd
     safePartnerCode(command.partnerCode); safePartnerCode(command.tenantId);
     if (!['create_partner', 'create_environment', 'issue_credential', 'rotate_credential', 'revoke_credential'].includes(String(command.action))) throw new BadRequestException('Unsupported partner operation');
     if (!['create_partner', 'create_environment'].includes(String(command.action)) && !partnerPermissions(request).canManageCredentials) throw new ForbiddenException('Credential administration permission required');
-    const context = request.staff?.partnerContext;
-    if (context && (context.partnerCode !== command.partnerCode || context.tenantId !== command.tenantId)) throw new ForbiddenException('Leave partner context before changing another environment');
+    // This is explicit staff administration, not a partner login. Do not inherit
+    // or constrain a command's target from the optional operational filter.
+    // Staff-role validation, session context-version checks and Core authorization remain mandatory.
     if (!args.key || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(args.key)) throw new BadRequestException('An idempotency key is required');
     headers['x-idempotency-key'] = args.key; headers['content-type'] = 'application/json';
   }
