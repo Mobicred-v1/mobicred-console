@@ -17,12 +17,14 @@ jobs:
   observe:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Observe deployed anonymous boundaries (not candidate CI)
+        env:
+          DEPLOYED_TIER: ${{ github.event_name == 'push' && github.ref_name || '' }}
         run: node scripts/deployed-console-check.cjs
       - uses: actions/upload-artifact@v4
         if: always()

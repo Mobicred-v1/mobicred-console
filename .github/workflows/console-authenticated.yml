@@ -82,6 +82,8 @@ jobs:
         run: node tests/fixtures/session-preflight.cjs
       - name: Authenticated platform, partner and ingestion journeys
         run: NODE_PATH=/tmp/console-browser/node_modules node scripts/staff-console-smoke.cjs
+      - name: Global ops administration and uncertain command journeys
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/ops-administration-smoke.cjs
       - name: Failure diagnostics
         if: failure()
         run: tail -n 80 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log /tmp/console-owner.log || true
