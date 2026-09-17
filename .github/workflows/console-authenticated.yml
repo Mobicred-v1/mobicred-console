@@ -88,6 +88,8 @@ jobs:
         run: NODE_PATH=/tmp/console-browser/node_modules node scripts/mobile-ops-shell.cjs
       - name: Persistent navigation and permission/session regression
         run: NODE_PATH=/tmp/console-browser/node_modules node scripts/spa-navigation-smoke.cjs
+      - name: Sequential case refresh consistency
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/case-refresh-smoke.cjs
       - name: Failure diagnostics
         if: failure()
         run: tail -n 80 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log /tmp/console-owner.log || true
