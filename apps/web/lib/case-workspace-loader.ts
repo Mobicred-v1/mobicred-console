@@ -2,6 +2,7 @@ import 'server-only';
 import { sourceFailure } from './source-failure';
 import { ApiFailure, consoleRequest, requirePageSession } from './server-auth';
 import { caseRecord, sourceItems } from './live-records';
+import { caseSnapshot, validCaseId } from './case-detail';
 import type { ConsoleRecord, ConsoleSession, SourceState } from './console-model';
 export type CaseWorkspaceData = { state: SourceState; items: ConsoleRecord[]; total: number; page: number; totalPages: number; canWrite: boolean; filters: { q: string; status: string }; detail?: string };
 export type CasePageQuery = Record<string, string | string[] | undefined>;
@@ -20,11 +21,9 @@ export async function loadCaseWorkspace(id?: string, params: CasePageQuery = {})
       record.fields.Version = String(row.version); return record;
     };
     if (id) {
-      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiFailure(404);
-      const result = await request(`/api/v1/console-cases/${id}`) as { case: unknown; notes?: unknown; canWrite?: boolean };
-      const record = normalize(result.case);
-      if (Array.isArray(result.notes)) record.timeline = result.notes.slice(0, 100).map((value) => { const note = value as Record<string, unknown>; return { title: `Staff note · ${typeof note.author_id === 'string' ? note.author_id : 'unknown'}`, detail: typeof note.body === 'string' ? note.body.slice(0, 2000) : '', time: typeof note.created_at === 'string' ? note.created_at : '' }; });
-      return { session, data: { ...empty, state: 'live', items: [record], total: 1, totalPages: 1, canWrite: result.canWrite === true } };
+      if (!validCaseId(id)) throw new ApiFailure(404);
+      const snapshot = caseSnapshot(await request(`/api/v1/console-cases/${id}`), session, id);
+      return { session, data: { ...empty, state: 'live', items: [snapshot.record], total: 1, totalPages: 1, canWrite: snapshot.canWrite } };
     }
     const result = await request(`/api/v1/console-cases?${new URLSearchParams({ page: String(page), limit: '25', ...(q ? { q } : {}), ...(status ? { status } : {}) })}`) as { meta?: { total?: unknown; totalPages?: unknown }; canWrite?: boolean };
     const total = Number(result.meta?.total); const totalPages = Number(result.meta?.totalPages);
