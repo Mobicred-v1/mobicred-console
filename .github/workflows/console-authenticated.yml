@@ -81,7 +81,7 @@ jobs:
       - name: Platform session preflight
         run: node tests/fixtures/session-preflight.cjs
       - name: Authenticated platform, partner and ingestion journeys
-        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/staff-console-smoke.cjs
+        run: NODE_PATH=/tmp/console-browser/node_modules node -r ./scripts/case-browser-observer.cjs scripts/staff-console-smoke.cjs
       - name: Global ops administration and uncertain command journeys
         run: NODE_PATH=/tmp/console-browser/node_modules node scripts/ops-administration-smoke.cjs
       - name: Small-screen operator controls
