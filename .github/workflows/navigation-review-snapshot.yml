@@ -1,0 +1,33 @@
+name: Navigation review snapshot
+on:
+  push:
+    branches: [codex/spa-session-navigation]
+    paths: [.github/workflows/navigation-review-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Package only tracked review sources (no credentials or build products)
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, zipfile
+          files = subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          with zipfile.ZipFile('/tmp/navigation-review-source.zip','w',zipfile.ZIP_DEFLATED) as out:
+            for name in files:
+              p = pathlib.Path(name)
+              if not name or not p.is_file() or p.is_symlink(): continue
+              if any(part.startswith('.env') or part in ('.git','node_modules','dist','.next') for part in p.parts): continue
+              if p.suffix in ('.pem','.key','.p12'): continue
+              out.write(p,name)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navigation-review-source
+          path: /tmp/navigation-review-source.zip
+          retention-days: 1
