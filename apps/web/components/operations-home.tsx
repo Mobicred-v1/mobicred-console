@@ -1,7 +1,6 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ConsoleShell } from './console-shell';
 import { Badge, EmptyState } from './primitives';
 import { Icon } from './icons';
 import { formatTime, type ConsoleSession } from '../lib/console-model';
@@ -14,7 +13,7 @@ export function OperationsHome({ data, session }: { data: CaseWorkspaceData; ses
   const canAdminister = session?.roles.some((role) => ['ADMIN', 'OPS'].includes(role)) ?? false;
   const loaded = data.state === 'live';
   const openScope = () => window.dispatchEvent(new Event('mobicred:open-administration-scope'));
-  return <ConsoleShell section="overview" preview={false} session={session}>
+  return <>
     <div className="page-heading"><div><div className="eyebrow">Mobicred staff workspace</div><h1>Operations overview</h1><p>Onboard partners, manage API access and follow operational investigations.</p></div><button className="button" onClick={() => router.refresh()}><Icon name="refresh" size={14} />Refresh</button></div>
     <section className="ops-welcome" aria-label="Operations workspace">
       <div><span className="eyebrow">One platform. Your operations.</span><h2>{scope ? `Working on ${scope.partnerName}` : 'Manage the whole partner network'}</h2><p>{scope ? `${scope.displayName} · ${scope.environment}. Operational records use this filter. Partner administration remains platform-wide.` : 'You are signed in as Mobicred staff. Start globally, or select a partner environment when the work calls for a focused view.'}</p>
@@ -31,5 +30,5 @@ export function OperationsHome({ data, session }: { data: CaseWorkspaceData; ses
       {loaded ? data.items.length ? <div className="table-scroll"><table><thead><tr><th>INVESTIGATION</th><th>TYPE</th><th>STATUS</th><th>ASSIGNED TO</th><th>UPDATED</th></tr></thead><tbody>{data.items.slice(0, 6).map((item) => <tr key={item.id}><td><Link className="record-link" href={`/inbox/${encodeURIComponent(item.id)}`}><strong>{item.title}</strong></Link></td><td>{item.category}</td><td><Badge tone={item.tone}>{item.status}</Badge></td><td>{item.owner}</td><td>{formatTime(item.updatedAt)}</td></tr>)}</tbody></table></div> : <div className="partner-empty"><Icon name="check" size={26} /><h3>No investigations in this view</h3><p>{scope ? 'Switch to all partners to see platform-wide work, or create an investigation in this scope.' : 'Create an investigation when an operation needs follow-up. Partner onboarding is available independently.'}</p></div> : <EmptyState state={data.state} detail={data.detail} retry={() => router.refresh()} />}
       <div className="panel-footer"><span>Case resolution does not change financial execution.</span><Link className="text-link" href="/inbox">View all investigations<Icon name="arrow" size={13} /></Link></div>
     </section>
-  </ConsoleShell>;
+  </>;
 }
