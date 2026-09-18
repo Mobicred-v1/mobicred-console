@@ -1,5 +1,5 @@
 export type PartnerContext = { partnerCode: string; tenantId: string; partnerName: string; displayName: string; environment: string };
-export type StaffSession = { name: string; tenant: string; roles: string[]; expiresAt?: number; contextVersion?: number; partnerContext?: PartnerContext | null };
+export type StaffSession = { staffId?: string; name: string; tenant: string; roles: string[]; expiresAt?: number; contextVersion?: number; partnerContext?: PartnerContext | null };
 export function sessionFrom(value: unknown): StaffSession {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid session');
   const r = value as Record<string, unknown>;
@@ -11,5 +11,5 @@ export function sessionFrom(value: unknown): StaffSession {
     partner = { partnerCode: p.partnerCode as string, tenantId: p.tenantId as string, partnerName: p.partnerName as string, displayName: p.displayName as string, environment: p.environment as string };
   }
   if (r.tenant !== (partner?.tenantId ?? '@mobicred')) throw new Error('Invalid operational context');
-  return { name: typeof r.name === 'string' ? r.name.slice(0, 120) : 'Staff operator', tenant: r.tenant, roles: r.roles as string[], expiresAt: r.expiresAt, contextVersion: Number(r.contextVersion), partnerContext: partner };
+  return { ...(typeof r.staffId === 'string' && r.staffId.length <= 255 ? { staffId: r.staffId } : {}), name: typeof r.name === 'string' ? r.name.slice(0, 120) : 'Staff operator', tenant: r.tenant, roles: r.roles as string[], expiresAt: r.expiresAt, contextVersion: Number(r.contextVersion), partnerContext: partner };
 }

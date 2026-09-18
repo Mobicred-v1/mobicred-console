@@ -3,8 +3,6 @@ const fs = require('node:fs');
 const origins = ['https://staging-console.mobicred.net', 'https://console.mobicred.net'];
 const paths = ['/', '/auth/login', '/overview', '/partners', '/customers', '/api/partners', '/api/session-status', '/health'];
 
-// Read-only checks of exactly the two owner-provided deployments. Never follow
-// external redirects, submit login, send credentials or persist raw HTML.
 async function observe(origin, path) {
   if (!origins.includes(origin) || !paths.includes(path)) throw new Error('Unapproved observation target');
   try {
@@ -27,15 +25,13 @@ function validObservation(result) {
 }
 async function main() {
   const target = process.env.DEPLOYED_TIER === 'staging' ? origins[0] : process.env.DEPLOYED_TIER === 'main' ? origins[1] : null;
-  let currentEntryObserved = !target;
-  if (target) {
-    const deadline = Date.now() + 300000;
-    while (Date.now() < deadline) { const result = await observe(target, '/auth/login'); if (validObservation(result) && result.hasPlatformLogin) { currentEntryObserved = true; break; } await new Promise((resolve) => setTimeout(resolve, 10000)); }
-  }
-  const report = { observedAt: new Date().toISOString(), deploymentTarget: target, currentEntryObserved, observations: [] };
-  for (const origin of origins) for (const path of paths) report.observations.push(await observe(origin, path));
-  fs.mkdirSync('artifacts', { recursive: true }); fs.writeFileSync('artifacts/deployed-console-boundary.json', JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));
-  if (!currentEntryObserved || report.observations.some((result) => !validObservation(result))) process.exitCode = 1;
+  if (!target) throw new Error('Select staging or main after redeploying that Coolify resource.');
+  const report = { observedAt: new Date().toISOString(), deploymentTarget: target, observations: [] };
+  for (const path of paths) report.observations.push(await observe(target, path));
+  fs.mkdirSync('artifacts', { recursive: true });
+  fs.writeFileSync('artifacts/deployed-console-boundary.json', JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(report, null, 2));
+  if (report.observations.some((result) => !validObservation(result))) process.exitCode = 1;
 }
 if (require.main === module) void main();
 module.exports = { observe, validObservation };

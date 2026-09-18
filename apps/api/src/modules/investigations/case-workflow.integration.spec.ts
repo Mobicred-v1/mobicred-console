@@ -24,7 +24,6 @@ integration('platform staff sessions, partner context and audited cases against 
         if (!ownerAvailable) return json({}, 503);
         const match = target.match(/\/partner-workspace\/(alpha|beta)\/context\/sandbox$/);
         if (!match) return json({}, 404);
-        // Match Core's global ResponseEnvelopeInterceptor, not only the controller DTO.
         return json({ success: true, data: { schemaVersion: 1, partnerCode: match[1], partnerName: match[1], tenantId: 'sandbox', displayName: 'Sandbox', environment: 'SANDBOX', status: 'ACTIVE', countryCodes: ['CI'] }, meta: { requestId: 'fixture', correlationId: 'fixture', timestamp: new Date().toISOString() } });
       }
       const body = new URLSearchParams(String(init?.body)); const token = body.get('token') ?? '';
@@ -109,5 +108,22 @@ integration('platform staff sessions, partner context and audited cases against 
     expect(JSON.stringify(rows)).not.toContain(id); expect(JSON.stringify(rows)).not.toContain('fixture-OPS');
     await request(app.getHttpServer()).delete('/api/v1/console-session').set(sessionHeaders(id)).expect(204);
     await request(app.getHttpServer()).get('/api/v1/console-session').set(sessionHeaders(id)).expect(401);
+  });
+  it('keeps sessions valid when audit/report access is denied or not configured', async () => {
+    const id = await createSession();
+    for (const [route, setting] of [['audit', 'CONSOLE_AUDIT_READ_ROLES'], ['reports', 'CONSOLE_CASE_REPORT_ROLES']]) {
+      const previous = process.env[setting];
+      try {
+        process.env[setting] = 'A_DIFFERENT_READ_ROLE';
+        const forbidden = await request(app.getHttpServer()).get(`/api/v1/console-cases/${route}`).set(sessionHeaders(id)).expect(403);
+        expect(forbidden.body.code).toBe('ACCESS_DENIED');
+        await request(app.getHttpServer()).get('/api/v1/console-session').set(sessionHeaders(id)).expect(200);
+        delete process.env[setting];
+        const setup = await request(app.getHttpServer()).get(`/api/v1/console-cases/${route}`).set(sessionHeaders(id)).expect(503);
+        expect(setup.body.code).toBe('ACCESS_NOT_CONFIGURED');
+        process.env[setting] = 'OPS';
+        await request(app.getHttpServer()).get(`/api/v1/console-cases/${route}`).set(sessionHeaders(id)).expect(200);
+      } finally { if (previous === undefined) delete process.env[setting]; else process.env[setting] = previous; }
+    }
   });
 });

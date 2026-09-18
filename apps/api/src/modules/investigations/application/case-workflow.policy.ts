@@ -10,7 +10,7 @@ export function assertTransition(from: CaseStatus, to: CaseStatus): void {
   if (!transitions[from]?.includes(to)) throw new BadRequestException('Unsupported case transition. Resolved cases must be explicitly reopened.');
 }
 export function assertActor(actor: VerifiedStaff): void {
-  if (!actor.staffId || !actor.tenantId) throw new ForbiddenException('Verified staff and tenant context required');
+  if (!actor.staffId || !actor.tenantId) throw new ForbiddenException('Verified staff and operational scope required');
 }
 export function hasConfiguredRole(actor: VerifiedStaff, setting: string): boolean {
   const roles = (process.env[setting] ?? '').split(',').map((role) => role.trim()).filter(Boolean);

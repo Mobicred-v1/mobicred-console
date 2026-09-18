@@ -1,30 +1,28 @@
 name: Deployed console observations
 on:
-  pull_request:
-    branches: [develop, staging, main]
-    paths:
-      - scripts/deployed-console-check.cjs
-      - .github/workflows/console-deployed.yml
-  push:
-    branches: [staging, main]
   workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Environment already redeployed in Coolify'
+        type: choice
+        required: true
+        options: [staging, main]
 permissions:
   contents: read
 concurrency:
-  group: deployed-console-${{ github.ref }}
+  group: deployed-console-${{ inputs.tier }}
   cancel-in-progress: true
 jobs:
   observe:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Observe deployed anonymous boundaries (not candidate CI)
+      - name: Observe the selected environment after manual redeploy
         env:
-          DEPLOYED_TIER: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          DEPLOYED_TIER: ${{ inputs.tier }}
         run: node scripts/deployed-console-check.cjs
       - uses: actions/upload-artifact@v4
         if: always()

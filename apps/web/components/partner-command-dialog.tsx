@@ -23,6 +23,7 @@ export function PartnerCommandDialog({ operation, data, session, close, saved }:
     try {
       const response = await fetch('/api/partners/commands', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': attempt.current.key, 'x-console-context-version': String(session.contextVersion ?? 0) }, body: attempt.current.body });
       const result = await response.json();
+      if (response.status === 400) { attempt.current = null; setAttempted(false); throw new Error('The request was rejected without a change. Check the partner, environment, source IPs and reason, then correct the form.'); }
       if (!response.ok) throw new Error(response.status === 409 ? 'The request conflicts with the current state. Close this form, refresh and inspect the partner before starting another operation.' : typeof result.error === 'string' ? result.error : 'The request could not be confirmed. Retry the same request or inspect the partner.');
       if (typeof result.receiptId !== 'string' || result.partnerCode !== attempt.current.partnerCode || result.tenantId !== attempt.current.tenantId || result.action !== operation.action) throw new Error('The response could not be confirmed. Retry the same request.');
       saved(result as PartnerReceipt);

@@ -1,35 +1,9 @@
 'use client';
-import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
-import { Icon, Logo } from './icons';
-import { Badge, Modal } from './primitives';
-import { sections, sectionFor, type ConsoleSession, type SectionId } from '../lib/console-model';
-import { PartnerContextControl } from './partner-context-control';
-import { SessionBoundary } from './session-boundary';
+import type { ReactNode } from 'react';
+import type { SectionId } from '../lib/console-model';
+import { ConsoleFrame } from './console-frame';
 
-export function ConsoleShell({ section, preview, session, children }: { section: SectionId; preview: boolean; session?: ConsoleSession; children: ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false); const [dialog, setDialog] = useState<'search' | 'notifications' | 'profile' | null>(null); const [query, setQuery] = useState('');
-  const root = preview ? '/preview' : ''; const globalAdministration = section === 'partners'; const scope = session?.partnerContext;
-  useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setDialog('search'); } if (event.key === 'Escape') setMobileOpen(false); }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
-  if (!preview && !session) return <main className="auth-page"><section className="auth-card"><h1>Staff access unavailable</h1><p>Please sign in again to open your workspace.</p><Link href="/auth/login" className="button primary">Sign in</Link></section></main>;
-  const content = <>
-    <a className="skip-link" href="#main-content">Skip to content</a>
-    <button className={`mobile-backdrop ${mobileOpen ? 'open' : ''}`} aria-label="Close navigation" tabIndex={mobileOpen ? 0 : -1} onClick={() => setMobileOpen(false)} />
-    <aside className={`sidebar ${mobileOpen ? 'open' : ''}`} id="console-navigation">
-      <Link className="brand" href={`${root}/overview`}><Logo /><div>Mobicred<small>Operations console</small></div></Link>
-      <nav className="nav-scroll" aria-label="Main navigation">{['Workspace', 'Platform', 'Governance'].map((group) => <div key={group}><div className="nav-label">{group}</div>{sections.filter((item) => item.group === group).map((item) => <Link key={item.id} href={`${root}/${item.id}`} onClick={() => setMobileOpen(false)} aria-current={item.id === section ? 'page' : undefined} className={`nav-link ${item.id === section ? 'active' : ''}`}><Icon name={item.icon} size={16} /><span>{item.label}</span>{preview && item.id === 'inbox' && <span className="nav-count">4</span>}</Link>)}</div>)}<div className="nav-label">Connected tools</div><Link href={`${root}/operations`} className="nav-link"><Icon name="arrow" size={15} />Specialist workspaces</Link></nav>
-      <div className="sidebar-footer"><button className="profile-button" onClick={() => setDialog('profile')}><span className="avatar">{preview ? 'DA' : session!.name.slice(0, 2).toUpperCase()}</span><span>{preview ? 'Demo analyst' : session!.name}<small>{preview ? 'Design preview' : 'Mobicred staff'}</small></span><Icon name="down" size={13} /></button></div>
-    </aside>
-    <div className="workspace"><header className="topbar">
-      <button className="icon-button mobile-menu" aria-label="Open navigation" aria-controls="console-navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}><Icon name="menu" /></button>
-      <button className="search-trigger" onClick={() => setDialog('search')}><Icon name="search" size={16} /><span>Find a workspace…</span><kbd>⌘ K</kbd></button>
-      <div className="top-actions">{preview ? <Badge tone="info">PREVIEW</Badge> : <PartnerContextControl session={session!} />}<button className={`icon-button ${preview ? 'notification-dot' : ''}`} aria-label="Notifications" onClick={() => setDialog('notifications')}><Icon name="bell" size={16} /></button><button className="icon-button" aria-label="Profile and access" onClick={() => setDialog('profile')}><Icon name="user" size={16} /></button></div>
-    </header>
-    <div className={`context-bar ${scope && !globalAdministration ? 'partner-active' : ''}`}><div className="context-left"><Icon name={preview ? 'info' : 'building'} size={12} /><strong>{preview ? 'Design preview' : globalAdministration ? 'Mobicred' : scope?.partnerName ?? 'Mobicred'}</strong><span>{preview ? 'Synthetic data only · no production actions' : globalAdministration ? 'Global partner administration · all API environments' : scope ? `${scope.displayName} · ${scope.environment}` : 'All partners · platform operations'}</span></div><span>{globalAdministration && !preview ? 'Operational filter not applied here' : scope ? 'Filtered view · Mobicred staff session' : 'No partner selection required'}</span></div>
-    <main id="main-content" className="page"><div className="breadcrumb"><Link href={`${root}/overview`}>Console</Link><Icon name="chevron" size={10} /><span>{sectionFor(section).group}</span><Icon name="chevron" size={10} /><span>{sectionFor(section).label}</span></div>{children}<footer className="page-footer"><span><Icon name="shield" size={12} />{preview ? 'Synthetic design preview' : 'Mobicred · staff operations'}</span><span>People. Data. Decisions.</span></footer></main></div>
-    {dialog === 'search' && <Modal title="Find your workspace" close={() => setDialog(null)}><label className="sr-only" htmlFor="command-search">Search workspaces</label><input id="command-search" className="command-input" placeholder="Customers, reconciliation, partner access…" value={query} onChange={(event) => setQuery(event.target.value)} autoFocus /><div className="command-results">{sections.filter((item) => `${item.label} ${item.description}`.toLowerCase().includes(query.toLowerCase())).map((item) => <Link className="command-item" key={item.id} href={`${root}/${item.id}`} onClick={() => setDialog(null)}><Icon name={item.icon} />{item.label}<span>{item.group}</span></Link>)}</div><div className="panel-footer">Search records within each workspace. <kbd>Esc to close</kbd></div></Modal>}
-    {dialog === 'notifications' && <Modal title="Attention center" close={() => setDialog(null)}><div className="modal-body"><p>{preview ? 'Synthetic notifications for this design preview.' : 'No alert feed is connected.'}</p>{preview && [['Payment reconciliation', 'payments'], ['Evidence review', 'credit'], ['Credential expiry', 'partners']].map(([title, target]) => <Link key={title} className="alert-card" href={`${root}/${target}`} onClick={() => setDialog(null)}><Icon name="bell" size={15} /><h3>{title}</h3><Icon name="arrow" size={13} /></Link>)}</div></Modal>}
-    {dialog === 'profile' && <Modal title="Profile & access" close={() => setDialog(null)}><div className="modal-body"><dl className="detail-grid"><div className="detail-field"><dt>Identity</dt><dd>{preview ? 'Demo analyst' : session!.name}</dd></div><div className="detail-field"><dt>Workspace</dt><dd>{preview ? 'Design preview' : 'Mobicred staff'}</dd></div><div className="detail-field"><dt>Optional operational filter</dt><dd>{scope ? `${scope.partnerName} · ${scope.displayName}` : 'All partners'}</dd></div><div className="detail-field"><dt>Role grants</dt><dd>{preview ? 'Preview only' : session!.roles.join(', ')}</dd></div></dl><div className="modal-actions">{!preview && <form method="post" action="/auth/logout"><button className="button" type="submit">Sign out</button></form>}<Link className="button" href={`${root}/people`} onClick={() => setDialog(null)}>People & access</Link></div></div></Modal>}
-  </>;
-  return preview ? content : <SessionBoundary session={session!}>{content}</SessionBoundary>;
+/** Explicit preview-only frame. Authenticated routes use the persistent workspace layout. */
+export function PreviewConsoleShell({ section, children }: { section: SectionId; children: ReactNode }) {
+  return <ConsoleFrame section={section} preview>{children}</ConsoleFrame>;
 }
