@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useStaffWorkspace } from './staff-session-provider';
 import { useEffect, useState } from 'react';
-import { ConsoleShell } from './console-shell';
 import { Badge, EmptyState, Modal } from './primitives';
 import { Icon } from './icons';
 import { PartnerCommandDialog } from './partner-command-dialog';
@@ -13,21 +13,21 @@ import './partner-workspace.css';
 import './operations-home.css';
 
 export function PartnerWorkspace({ data, session, onboard = false }: { data: PartnerPage; session?: ConsoleSession; onboard?: boolean }) {
+  const { changeContext } = useStaffWorkspace();
   const router = useRouter(); const partner = data.partner;
   const [operation, setOperation] = useState<PartnerOperation | null>(() => onboard && !partner && data.state === 'live' && data.permissions.canCreate ? { action: 'create_partner' } : null);
   const [receipt, setReceipt] = useState<PartnerReceipt | null>(null); const [notice, setNotice] = useState(''); const [q, setQ] = useState(data.q); const [switching, setSwitching] = useState(false);
-  // Administration inventories follow the explicit route, never a hidden session filter.
   const { tenants, credentials } = data; const context = session?.partnerContext;
   useEffect(() => { if (!receipt?.apiKey) return; const timeout = setTimeout(() => setReceipt(null), 120000); return () => clearTimeout(timeout); }, [receipt]);
   function closeOperation() { setOperation(null); if (onboard) router.replace('/partners', { scroll: false }); }
   async function focus(tenantId: string) {
     if (!partner || switching) return; setSwitching(true);
-    try { const response = await fetch('/api/partners/context', { method: 'POST', headers: { 'content-type': 'application/json', 'x-console-context-version': String(session?.contextVersion ?? 0) }, body: JSON.stringify({ partnerCode: partner.partnerCode, tenantId }) }); if (!response.ok) throw new Error(); window.location.assign(`/partners/${partner.partnerCode}`); }
+    try { await changeContext({ partnerCode: partner.partnerCode, tenantId }, `/partners/${partner.partnerCode}`); setSwitching(false); }
     catch { setNotice('The operational filter could not be changed. Reload and retry.'); setSwitching(false); }
   }
   function navigate(page: number) { const params = new URLSearchParams({ page: String(page), q, ...(partner ? { tab: data.tab } : {}) }); router.push(`/partners${partner ? `/${partner.partnerCode}` : ''}?${params}`); }
   const isCurrent = (tenantId: string) => context?.partnerCode === partner?.partnerCode && context?.tenantId === tenantId;
-  return <ConsoleShell section="partners" preview={false} session={session}>
+  return <>
     <div className="page-heading"><div><div className="eyebrow">Global partner administration</div><h1>{partner ? partner.displayName : 'Partners'}</h1><p>{partner ? 'Manage this partner’s environments, API credentials and customer connections.' : 'Onboard and administer Mobicred’s partner network. No partner selection is required.'}</p></div><div className="actions"><button className="button" onClick={() => router.refresh()}><Icon name="refresh" size={14} />Refresh</button>{data.permissions.canCreate && <button className="button primary" disabled={data.state !== 'live'} onClick={() => setOperation({ action: partner ? 'create_environment' : 'create_partner' })}><Icon name="plus" size={14} />{partner ? 'Add environment' : 'New partner'}</button>}</div></div>
     {context && <div className="admin-scope-note"><strong>Partner administration stays global</strong><p>Your operational filter remains {context.partnerName} · {context.displayName}. You can onboard and manage other partners here without switching accounts or changing that filter.</p></div>}
     {notice && <div className="notice" role="status">{notice}</div>}
@@ -48,6 +48,6 @@ export function PartnerWorkspace({ data, session, onboard = false }: { data: Par
     </>}
     {operation && session && <PartnerCommandDialog operation={operation} data={data} session={session} close={closeOperation} saved={(result) => { setOperation(null); setReceipt(result); setNotice(`Operation recorded · ${result.receiptId}`); if (!partner) router.push(`/partners/${result.partnerCode}?tab=credentials`); else router.refresh(); }} />}
     {receipt && <Modal title={receipt.apiKey ? 'Save the API secret now' : 'Operation recorded'} close={() => setReceipt(null)}><div className="modal-body">{receipt.apiKey ? <><p>Store this secret in the partner’s secret manager. It cannot be retrieved again.</p><div className="partner-secret" data-testid="issued-api-secret">{receipt.apiKey}</div><button className="button" style={{ marginTop: 12 }} onClick={async () => { try { await navigator.clipboard.writeText(receipt.apiKey!); setNotice('API secret copied. Store it securely.'); } catch { setNotice('Clipboard access was denied. Select the displayed secret manually.'); } }}>Copy API secret</button><p className="partner-help">This display closes automatically after two minutes.</p></> : <p>{receipt.replayed ? 'This operation was already completed. Its secret is not retained; inspect the credential before deliberately rotating or reissuing.' : 'The requested change has been recorded.'}</p>}<dl className="detail-grid"><div className="detail-field"><dt>Partner</dt><dd>{receipt.partnerCode}</dd></div><div className="detail-field"><dt>Environment</dt><dd>{receipt.tenantId}</dd></div><div className="detail-field"><dt>Receipt</dt><dd className="partner-code">{receipt.receiptId}</dd></div>{receipt.credential && <div className="detail-field"><dt>Credential key</dt><dd className="partner-code">{receipt.credential.credentialKey}</dd></div>}</dl><div className="modal-actions"><button className="button primary" onClick={() => setReceipt(null)}>{receipt.apiKey ? 'I have stored the secret' : 'Close'}</button></div></div></Modal>}
-  </ConsoleShell>;
+  </>;
 }
 function Pagination({ page, limit, total, change }: { page: number; limit: number; total: number; change: (page: number) => void }) { return <div className="panel-footer"><span>{total} records · page {page} of {Math.max(1, Math.ceil(total / limit))}</span><div className="actions"><button className="button" disabled={page <= 1} onClick={() => change(page - 1)}>Previous</button><button className="button" disabled={page * limit >= total} onClick={() => change(page + 1)}>Next</button></div></div>; }

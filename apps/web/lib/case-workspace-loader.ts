@@ -1,6 +1,8 @@
 import 'server-only';
-import { ApiFailure, consoleRequest, currentSession } from './server-auth';
+import { sourceFailure } from './source-failure';
+import { ApiFailure, consoleRequest, requirePageSession } from './server-auth';
 import { caseRecord, sourceItems } from './live-records';
+import { caseSnapshot, validCaseId } from './case-detail';
 import type { ConsoleRecord, ConsoleSession, SourceState } from './console-model';
 export type CaseWorkspaceData = { state: SourceState; items: ConsoleRecord[]; total: number; page: number; totalPages: number; canWrite: boolean; filters: { q: string; status: string }; detail?: string };
 export type CasePageQuery = Record<string, string | string[] | undefined>;
@@ -9,9 +11,9 @@ export async function loadCaseWorkspace(id?: string, params: CasePageQuery = {})
   const status = typeof params.status === 'string' && ['open', 'waiting', 'resolved'].includes(params.status) ? params.status : '';
   const page = Math.max(1, Math.min(10000, Number.parseInt(typeof params.page === 'string' ? params.page : '1', 10) || 1));
   const empty: CaseWorkspaceData = { state: 'unauthorized', items: [], total: 0, page, totalPages: 0, canWrite: false, filters: { q, status } };
-  let session: ConsoleSession | undefined;
+  const current = await requirePageSession();
+  const session = current.session;
   try {
-    const current = await currentSession(); if (!current) return { data: empty }; session = current.session;
     const request = (path: string) => consoleRequest(path, { sessionId: current.id });
     const normalize = (value: unknown) => {
       const row = value as Record<string, unknown>; const record = caseRecord(value, current.session.tenant, current.session.partnerContext?.partnerCode);
@@ -19,19 +21,15 @@ export async function loadCaseWorkspace(id?: string, params: CasePageQuery = {})
       record.fields.Version = String(row.version); return record;
     };
     if (id) {
-      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new ApiFailure(404);
-      const result = await request(`/api/v1/console-cases/${id}`) as { case: unknown; notes?: unknown; canWrite?: boolean };
-      const record = normalize(result.case);
-      if (Array.isArray(result.notes)) record.timeline = result.notes.slice(0, 100).map((value) => { const note = value as Record<string, unknown>; return { title: `Staff note · ${typeof note.author_id === 'string' ? note.author_id : 'unknown'}`, detail: typeof note.body === 'string' ? note.body.slice(0, 2000) : '', time: typeof note.created_at === 'string' ? note.created_at : '' }; });
-      return { session, data: { ...empty, state: 'live', items: [record], total: 1, totalPages: 1, canWrite: result.canWrite === true } };
+      if (!validCaseId(id)) throw new ApiFailure(404);
+      const snapshot = caseSnapshot(await request(`/api/v1/console-cases/${id}`), session, id);
+      return { session, data: { ...empty, state: 'live', items: [snapshot.record], total: 1, totalPages: 1, canWrite: snapshot.canWrite } };
     }
     const result = await request(`/api/v1/console-cases?${new URLSearchParams({ page: String(page), limit: '25', ...(q ? { q } : {}), ...(status ? { status } : {}) })}`) as { meta?: { total?: unknown; totalPages?: unknown }; canWrite?: boolean };
     const total = Number(result.meta?.total); const totalPages = Number(result.meta?.totalPages);
     if (!Number.isSafeInteger(total) || total < 0 || !Number.isSafeInteger(totalPages) || totalPages < 0) throw new Error('Invalid pagination');
     return { session, data: { ...empty, state: 'live', items: sourceItems(result).map(normalize), total, totalPages, canWrite: result.canWrite === true } };
   } catch (error) {
-    if (error instanceof ApiFailure && error.status === 404) return { session, data: { ...empty, state: 'live' } };
-    const denied = error instanceof ApiFailure && [401, 403].includes(error.status);
-    return { session, data: { ...empty, state: denied ? 'unauthorized' : 'unavailable', detail: denied ? 'This case is not accessible in your current workspace.' : 'Investigation records are temporarily unavailable.' } };
+    return { session, data: { ...empty, ...sourceFailure(error, Boolean(id)) } };
   }
 }

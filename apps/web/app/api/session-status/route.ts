@@ -5,6 +5,6 @@ export async function GET() {
   try {
     const current = await currentSession();
     if (!current) return Response.json({ authenticated: false }, { status: 401, headers });
-    return Response.json({ authenticated: true, expiresAt: current.session.expiresAt, contextVersion: current.session.contextVersion }, { headers });
+    return Response.json({ authenticated: true, ...current.session }, { headers });
   } catch (error) { return Response.json({ authenticated: false }, { status: error instanceof ApiFailure && [401, 403].includes(error.status) ? 401 : 503, headers }); }
 }

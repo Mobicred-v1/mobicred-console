@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useStaffWorkspace } from './staff-session-provider';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Modal } from './primitives';
 import { Icon } from './icons';
@@ -9,6 +10,7 @@ import './operations-home.css';
 type Partner = { partnerCode: string; displayName: string };
 type Environment = { tenantId: string; displayName: string; environment: string; status: string };
 export function PartnerContextControl({ session }: { session: ConsoleSession }) {
+  const { changeContext } = useStaffWorkspace();
   const labelId = useId(); const requests = useRef<AbortController | null>(null); const mutating = useRef(false);
   const [open, setOpen] = useState(false); const [q, setQ] = useState(''); const [partners, setPartners] = useState<Partner[]>([]);
   const [selected, setSelected] = useState(''); const [environments, setEnvironments] = useState<Environment[]>([]); const [tenant, setTenant] = useState('');
@@ -39,7 +41,7 @@ export function PartnerContextControl({ session }: { session: ConsoleSession }) 
   }
   async function change(global = false) {
     if (mutating.current) return; mutating.current = true; requests.current?.abort(); setReading(false); setSaving(true); setError('');
-    try { const response = await fetch('/api/partners/context', { method: 'POST', headers: { 'content-type': 'application/json', 'x-console-context-version': String(session.contextVersion ?? 0) }, body: JSON.stringify(global ? { partnerCode: null } : { partnerCode: selected, tenantId: tenant }) }); if (!response.ok) throw new Error(response.status === 409 ? 'Your scope changed in another tab. Reload before choosing again.' : 'The scope could not be verified. Your staff session has not changed.'); window.location.assign('/overview'); }
+    try { await changeContext(global ? null : { partnerCode: selected, tenantId: tenant }); mutating.current = false; setSaving(false); setOpen(false); }
     catch (err) { setError(err instanceof Error ? err.message : 'Scope change failed.'); mutating.current = false; setSaving(false); }
   }
   function close() { if (mutating.current) return; requests.current?.abort(); setReading(false); setOpen(false); }
@@ -53,7 +55,7 @@ export function PartnerContextControl({ session }: { session: ConsoleSession }) 
       <div className="form-field"><label htmlFor={`${labelId}-environment`}>Environment</label><select id={`${labelId}-environment`} value={tenant} disabled={reading || saving || !selected} onChange={(event) => setTenant(event.target.value)}><option value="">Choose an environment</option>{environments.map((environment) => <option key={environment.tenantId} value={environment.tenantId}>{environment.displayName} · {environment.environment}</option>)}</select></div>
       {selected && !reading && !environments.length && !error && <p role="status">This partner has no active API environment. Add one from partner administration.</p>}
       {error && <div className="notice warning" role="alert">{error}</div>}
-      <p className="partner-help">Changing scope reloads operational records and discards unsaved forms. It does not change your staff permissions.</p>
+      <p className="partner-help">Changing scope updates operational records and discards unsaved forms. It does not change your staff permissions.</p>
       <div className="modal-actions"><button className="button" disabled={saving} onClick={close}>Cancel</button><button className="button primary" disabled={reading || saving || !tenant || !selected} onClick={() => { void change(); }}>{saving ? 'Applying…' : 'Use partner context'}</button></div><Link className="text-link" href="/partners" onClick={close}>Open partner administration<Icon name="arrow" size={13} /></Link>
     </div></Modal>}
   </>;

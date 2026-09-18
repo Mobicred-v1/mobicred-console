@@ -5,7 +5,7 @@ export type PartnerCredential = { partnerCode: string; tenantId: string; credent
 export type PartnerPolicy = { policyId: string; tenantId: string; name: string; status: string; scopes: string[]; ipAllowlist: string[]; countryCodes: string[] };
 export type PartnerCustomer = { referenceId: string; partnerCode: string; tenantId: string; partnerCustomerRef: string; customerId: string; status: string; customerStatus: string | null; kycLevel: string | null; createdAt: string };
 export type PartnerPage = {
-  state: 'live' | 'unavailable' | 'unauthorized'; error?: string; items: Partner[];
+  state: import('./console-model').SourceState; error?: string; items: Partner[];
   meta: { page: number; limit: number; total: number }; q: string; tab: string;
   permissions: { canRead: boolean; canCreate: boolean; canManageCredentials: boolean };
   partner?: Partner; tenants: PartnerEnvironment[]; credentials: PartnerCredential[]; policies: PartnerPolicy[];

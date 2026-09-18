@@ -12,7 +12,7 @@ export function partnerCommandFromForm(operation: PartnerOperation, form: FormDa
   if (!partnerCode || !/^[a-z0-9][a-z0-9_-]{1,63}$/.test(partnerCode)) throw new Error('Enter a valid partner code.');
   if (!/^[a-z0-9][a-z0-9_-]{1,63}$/.test(tenantId)) throw new Error('Select or enter the API environment for this operation.');
   if (operation.credential && operation.credential.partnerCode !== partnerCode) throw new Error('The credential does not belong to this partner.');
-  const reason = field('reason');
+  const reason = field('reason').replace(/[\r\n\t]+/g, ' ');
   if (reason.length < 10 || reason.length > 1000) throw new Error('Provide a reason between 10 and 1,000 characters.');
   const command: Record<string, unknown> = { action: operation.action, partnerCode, tenantId, reason };
   if (creating) {
@@ -24,7 +24,6 @@ export function partnerCommandFromForm(operation: PartnerOperation, form: FormDa
   if (operation.action !== 'revoke_credential') { if (!scopes.length) throw new Error('Choose at least one API permission.'); command.scopes = [...new Set(scopes)]; }
   if (operation.credential) command.credentialKey = operation.credential.credentialKey;
   if (operation.action === 'issue_credential' || operation.action === 'rotate_credential') {
-    // Rotating must not silently turn a time-limited credential into a permanent one.
     const expiry = field('expiresAt') || operation.credential?.expiresAt;
     if (expiry) { const stamp = Date.parse(expiry); if (!Number.isFinite(stamp) || stamp <= now) throw new Error('Credential expiry must be a valid future date.'); command.expiresAt = new Date(stamp).toISOString(); }
   }

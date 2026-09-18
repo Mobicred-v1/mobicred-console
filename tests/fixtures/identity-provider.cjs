@@ -12,7 +12,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
     if (url.pathname === '/health') return json(res, 200, { fixture: true });
-    if (req.method === 'POST' && url.pathname === '/__fixture/mode' && ['staff', 'non-staff', 'short', 'unavailable'].includes(url.searchParams.get('value'))) { mode = url.searchParams.get('value'); return json(res, 200, {}); }
+    if (req.method === 'POST' && url.pathname === '/__fixture/mode' && ['staff', 'staff-admin-only', 'non-staff', 'short', 'unavailable'].includes(url.searchParams.get('value'))) { mode = url.searchParams.get('value'); return json(res, 200, {}); }
     if (req.method === 'POST' && url.pathname === '/__fixture/revoke') { for (const token of tokens.values()) token.active = false; return json(res, 200, {}); }
     if (req.method === 'GET' && url.pathname === '/realms/staff/protocol/openid-connect/auth') {
       const q = url.searchParams;
@@ -25,8 +25,7 @@ const server = http.createServer(async (req, res) => {
       const challenge = createHash('sha256').update(body.get('code_verifier') || '').digest('base64url');
       if (body.get('client_id') !== clientId || body.get('client_secret') !== clientSecret || body.get('grant_type') !== 'authorization_code' || body.get('redirect_uri') !== callback || !entry || entry.expires <= Date.now() || !timingSafeEqual(Buffer.from(entry.challenge), Buffer.from(challenge))) return json(res, 400, {});
       const token = random(); const lifetime = mode === 'short' ? 8 : 900;
-      // Deliberately NO tenant claims. Staff identity belongs to Mobicred.
-      tokens.set(token, { active: true, iss: issuer, aud: 'console', sub: 'fixture-operator', exp: Math.floor(Date.now() / 1000) + lifetime, realm_access: { roles: mode === 'non-staff' ? ['CUSTOMER'] : ['OPS', 'ADMIN'] } });
+      tokens.set(token, { active: true, iss: issuer, aud: 'console', sub: 'fixture-operator', exp: Math.floor(Date.now() / 1000) + lifetime, realm_access: { roles: mode === 'non-staff' ? ['CUSTOMER'] : mode === 'staff-admin-only' ? ['ADMIN'] : ['OPS', 'ADMIN'] } });
       return json(res, 200, { access_token: token, token_type: 'Bearer', expires_in: lifetime });
     }
     if (req.method === 'POST' && url.pathname === '/realms/staff/protocol/openid-connect/token/introspect') {
