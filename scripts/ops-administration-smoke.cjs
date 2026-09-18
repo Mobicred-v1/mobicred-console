@@ -1,0 +1,56 @@
+'use strict';
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+if (process.env.NODE_ENV !== 'test' || process.env.CONSOLE_DATABASE_TESTS !== 'true') throw new Error('This journey is restricted to the isolated fixture stack');
+const origin = 'http://127.0.0.1:3006'; const owner = 'http://127.0.0.1:4500';
+(async () => {
+  const browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1512, height: 1050 } }); const page = await context.newPage(); page.setDefaultTimeout(20000);
+  const errors = []; page.on('pageerror', (error) => errors.push(error.message)); fs.mkdirSync('artifacts', { recursive: true });
+  const visit = async (path) => { await page.goto(origin + path, { waitUntil: 'networkidle' }); await page.locator('#main-content .page-heading h1').waitFor(); };
+  const current = async () => { const cookie = (await context.cookies()).find((value) => value.name === 'mobicred_session'); assert.ok(cookie); const response = await page.request.get('http://127.0.0.1:3005/api/v1/console-session', { headers: { 'x-console-session': cookie.value } }); assert.equal(response.status(), 200); return response.json(); };
+  const coreMode = async (value) => { assert.equal((await page.request.post(`${owner}/__fixture/core-mode?value=${value}`)).status(), 200); };
+  async function command(title) { const result = page.waitForResponse((response) => response.url().endsWith('/api/partners/commands') && response.request().method() === 'POST'); await page.getByRole('dialog').getByRole('button', { name: title, exact: true }).click(); const response = await result; assert.equal(response.status(), 201); return { response: await response.json(), body: response.request().postDataJSON() }; }
+  try {
+    await page.goto(`${origin}/auth/login`); assert.equal(await page.locator('input').count(), 0);
+    await page.getByRole('button', { name: 'Continue securely', exact: true }).click(); await page.waitForURL(`${origin}/overview`); await page.getByRole('heading', { name: 'Operations overview', exact: true }).waitFor();
+    assert.equal((await current()).partnerContext, null);
+    await page.getByRole('link', { name: 'New investigation', exact: true }).click(); await page.getByRole('dialog').waitFor(); await page.keyboard.press('Escape');
+    await visit('/overview'); await page.getByRole('link', { name: 'Onboard a partner', exact: true }).click(); await page.getByRole('dialog').getByLabel('Partner code', { exact: true }).waitFor();
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click(); await page.waitForURL(`${origin}/partners`);
+    await visit('/partners/alpha'); await page.getByRole('button', { name: 'Work in this context', exact: true }).click(); await page.getByRole('button', { name: 'Current context', exact: true }).waitFor();
+    const scoped = await current(); assert.equal(scoped.partnerContext.partnerCode, 'alpha');
+    await page.goto(`${origin}/auth/login`); await page.waitForURL(`${origin}/overview`); assert.equal((await current()).partnerContext.partnerCode, 'alpha', 'visiting login must not create a different staff session');
+    await visit('/partners'); await page.getByRole('heading', { name: 'Partners', exact: true }).waitFor(); await page.locator('tbody').getByText('Alpha Retail', { exact: true }).waitFor(); await page.locator('tbody').getByText('Beta Distribution', { exact: true }).waitFor(); await page.getByRole('button', { name: 'New partner', exact: true }).waitFor();
+    await page.screenshot({ path: 'artifacts/ops-global-partners.png', fullPage: true });
+    await visit('/partners/beta?tab=customers'); await page.getByText('beta-customer-one', { exact: true }).waitFor(); assert.equal(await page.getByText('alpha-customer-one', { exact: true }).count(), 0); assert.equal((await current()).partnerContext.partnerCode, 'alpha');
+    await visit('/partners'); await page.getByRole('button', { name: 'New partner', exact: true }).click();
+    await page.getByLabel('Partner code', { exact: true }).fill('ops-onboarded'); await page.getByLabel('Display name', { exact: true }).fill('Ops Onboarded'); await page.getByLabel('Environment identifier', { exact: true }).fill('ops-sandbox'); await page.getByLabel('Allowed source IPs', { exact: true }).fill('203.0.113.8/32'); await page.getByLabel('Reason', { exact: true }).fill('Onboard a synthetic partner without replacing the operator filter.');
+    await page.screenshot({ path: 'artifacts/ops-partner-onboarding.png', fullPage: true });
+    const created = await command('New partner'); assert.equal(created.body.partnerCode, 'ops-onboarded'); assert.equal(created.body.tenantId, 'ops-sandbox');
+    await page.waitForURL(`${origin}/partners/ops-onboarded?tab=credentials`); await page.getByRole('heading', { name: 'API credentials', exact: true }).waitFor(); if (await page.getByRole('dialog').count()) await page.keyboard.press('Escape'); assert.equal((await current()).partnerContext.partnerCode, 'alpha');
+    await page.getByRole('button', { name: 'Add environment', exact: true }).click(); await page.getByLabel('Display name', { exact: true }).fill('Quality assurance'); await page.getByLabel('Environment identifier', { exact: true }).fill('ops-qa'); await page.getByLabel('Allowed source IPs', { exact: true }).fill('203.0.113.8/32'); await page.getByLabel('Reason', { exact: true }).fill('Add an explicit environment without inheriting the selected sandbox.');
+    const added = await command('Add environment'); assert.equal(added.body.tenantId, 'ops-qa'); await page.getByRole('dialog').getByRole('heading', { name: 'Operation recorded', exact: true }).waitFor(); await page.keyboard.press('Escape');
+    await visit('/partners/ops-onboarded?tab=credentials'); await page.getByRole('button', { name: 'Issue credential', exact: true }).click(); assert.equal(await page.getByLabel('API environment', { exact: true }).inputValue(), ''); await page.getByLabel('API environment', { exact: true }).selectOption('ops-qa'); await page.getByLabel('Reason', { exact: true }).fill('Issue a credential for the explicit QA environment.');
+    const issued = await command('Issue API credential'); assert.equal(issued.body.tenantId, 'ops-qa'); assert.equal(issued.response.tenantId, 'ops-qa'); await page.getByTestId('issued-api-secret').waitFor(); await page.getByRole('button', { name: 'I have stored the secret', exact: true }).click(); assert.equal((await current()).partnerContext.partnerCode, 'alpha');
+    // Commit the first request, then lose its response. Retrying the disabled form
+    // must use its original body/key, never empty controls or a new request key.
+    await page.getByRole('button', { name: 'Issue credential', exact: true }).click(); await page.getByLabel('API environment', { exact: true }).selectOption('ops-qa'); await page.getByLabel('Reason', { exact: true }).fill('Verify an uncertain issuance retries with the original body.');
+    let lostRequest; let lostKey; const commandUrl = `${origin}/api/partners/commands`;
+    await page.route(commandUrl, async (route) => { lostRequest = route.request().postData(); lostKey = route.request().headers()['idempotency-key']; const result = await route.fetch(); assert.equal(result.status(), 201); await route.abort('failed'); });
+    await page.getByRole('dialog').getByRole('button', { name: 'Issue API credential', exact: true }).click(); await page.getByRole('button', { name: 'Retry same request', exact: true }).waitFor(); assert.equal(await page.getByLabel('API environment', { exact: true }).isDisabled(), true); await page.unroute(commandUrl);
+    const replay = page.waitForResponse((response) => response.url() === commandUrl && response.request().method() === 'POST'); await page.getByRole('button', { name: 'Retry same request', exact: true }).click(); const replayResponse = await replay;
+    assert.equal(replayResponse.status(), 201); assert.equal(replayResponse.request().postData(), lostRequest); assert.equal(replayResponse.request().headers()['idempotency-key'], lostKey); assert.equal((await replayResponse.json()).replayed, true); assert.equal((await replayResponse.json()).apiKey, undefined);
+    await page.getByRole('dialog').getByRole('heading', { name: 'Operation recorded', exact: true }).waitFor(); await page.keyboard.press('Escape'); await visit('/partners/ops-onboarded?tab=credentials'); assert.equal(await page.locator('tbody tr').count(), 2); await page.screenshot({ path: 'artifacts/ops-explicit-api-access.png', fullPage: true });
+    // Directory outages do not trap the operator in a scoped view.
+    await coreMode('unavailable'); await page.getByRole('button', { name: 'Switch partner context', exact: true }).click(); await page.getByRole('button', { name: 'Use all partners', exact: true }).click(); await page.waitForURL(`${origin}/overview`); assert.equal((await current()).partnerContext, null); await coreMode('valid'); await page.screenshot({ path: 'artifacts/ops-overview.png', fullPage: true });
+    // Expose partners beyond the initial 25-record directory page.
+    await page.route('**/api/partners?*', async (route) => { const second = new URL(route.request().url()).searchParams.get('page') === '2'; await route.fulfill({ json: { items: [{ partnerCode: second ? 'beta' : 'alpha', displayName: second ? 'Beta Distribution' : 'Alpha Retail' }], meta: { page: second ? 2 : 1, limit: 25, total: 26 } } }); });
+    await page.getByRole('button', { name: 'Select a partner to administer', exact: true }).click(); await page.getByRole('button', { name: 'More partners', exact: true }).click(); await page.getByRole('dialog').getByLabel('Partner', { exact: true }).selectOption('beta'); await page.getByRole('dialog').getByLabel('Environment', { exact: true }).selectOption('sandbox'); await page.keyboard.press('Escape'); await page.unroute('**/api/partners?*');
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of ['/overview', '/partners', '/partners/ops-onboarded?tab=credentials', '/partners?onboard=1']) { await visit(path); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No overflow: ${path}`); if (await page.getByRole('dialog').count()) await page.keyboard.press('Escape'); }
+    await visit('/overview'); await page.screenshot({ path: 'artifacts/ops-overview-mobile.png', fullPage: true }); assert.deepEqual(errors, []);
+    console.log('PASS: ops-first home, tenant-free login and existing-session return, working investigation/onboarding actions, global directory during selected context, cross-partner administration without impersonation, explicit environment targeting, one-time credentials, frozen-body uncertain retries, directory-outage global return, selector pagination and mobile layouts. Fixtures only.');
+  } catch (error) { await page.screenshot({ path: 'artifacts/ops-administration-failure.png', fullPage: true, mask: [page.getByTestId('issued-api-secret')] }).catch(() => {}); console.error('Ops journey failed at', page.url()); throw error; }
+  finally { await coreMode('valid').catch(() => {}); await browser.close(); }
+})().catch((error) => { console.error(error); process.exit(1); });

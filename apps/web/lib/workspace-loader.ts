@@ -1,12 +1,13 @@
 import 'server-only';
-import { ApiFailure, consoleRequest, currentSession } from './server-auth';
+import { sourceFailure } from './source-failure';
+import { consoleRequest, requirePageSession } from './server-auth';
 import { caseRecord, creditRecord, sourceItems } from './live-records';
 import { capabilityData, sourceQualityData } from './platform-records';
 import type { ConsoleData, ConsoleRecord, ConsoleSession, SectionId } from './console-model';
 export async function loadWorkspace(section: SectionId, id?: string): Promise<{ data: ConsoleData; session?: ConsoleSession }> {
-  let session: ConsoleSession | undefined;
+  const current = await requirePageSession();
+  const session = current.session;
   try {
-    const current = await currentSession(); if (!current) return { data: { state: 'unauthorized', items: [] } }; session = current.session;
     const request = (path: string) => consoleRequest(path, { sessionId: current.id });
     const filter = (data: ConsoleData) => ({ session, data: id ? { ...data, items: data.items.filter((item) => item.id === id) } : data });
     if (section === 'ingestion') return filter(sourceQualityData(await request('/api/v1/console-read/ingestion'), session.tenant, session.partnerContext?.partnerCode));
@@ -41,8 +42,6 @@ export async function loadWorkspace(section: SectionId, id?: string): Promise<{ 
     }
     return { session, data: { state: 'unavailable', items: [], detail: 'This workspace’s service integration is not yet connected. No sample records are used.' } };
   } catch (error) {
-    if (error instanceof ApiFailure && error.status === 404) return { session, data: { state: 'live', items: [] } };
-    const denied = error instanceof ApiFailure && [401, 403].includes(error.status);
-    return { session, data: { state: denied ? 'unauthorized' : 'unavailable', items: [], detail: denied ? 'Access is not permitted in this workspace.' : 'The requested records are temporarily unavailable.' } };
+    return { session, data: { items: [], ...sourceFailure(error, Boolean(id)) } };
   }
 }

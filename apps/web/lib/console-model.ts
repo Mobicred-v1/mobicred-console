@@ -16,7 +16,7 @@ export const sections = [
   { id: 'reports', label: 'Reports', group: 'Governance', icon: 'chart', description: 'Operational workload and reporting.' },
 ] as const;
 export type SectionId = (typeof sections)[number]['id'];
-export type SourceState = 'live' | 'stale' | 'unavailable' | 'unauthorized' | 'preview';
+export type SourceState = 'live' | 'stale' | 'unavailable' | 'unauthorized' | 'forbidden' | 'not-configured' | 'not-found' | 'preview';
 export type Tone = 'success' | 'warning' | 'danger' | 'neutral' | 'info';
 export type OwnerSlice = { owner: string; state: SourceState; status: string; observedAt?: string; detail?: string };
 export type ConsoleRecord = { id: string; title: string; subtitle: string; status: string; tone: Tone; category: string; owner: string; updatedAt: string; fields: Record<string, string>; owners?: OwnerSlice[]; timeline?: { title: string; detail: string; time: string }[]; related?: { label: string; section: SectionId; id?: string }[] };
@@ -25,4 +25,4 @@ export type ConsoleSession = StaffSession;
 export function isSection(value: string): value is SectionId { return sections.some((s) => s.id === value); }
 export function sectionFor(id: SectionId) { return sections.find((s) => s.id === id)!; }
 export function formatTime(value?: string) { if (!value || !Number.isFinite(Date.parse(value))) return 'Not observed'; return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(value)) + ' UTC'; }
-export function statusTone(status: string): Tone { if (/failed|rejected|blocked|critical|revoked/i.test(status)) return 'danger'; if (/pending|review|waiting|degraded|unmatched|expiring|open/i.test(status)) return 'warning'; if (/active|verified|healthy|completed|resolved|approved|success|enabled/i.test(status)) return 'success'; return 'neutral'; }
+export function statusTone(status: string): Tone { if (/failed|rejected|blocked|critical|revoked/i.test(status)) return 'danger'; if (/pending|review|waiting|degraded|unmatched|expiring|open/i.test(status)) return 'warning'; if (/^(active|verified|healthy|completed|resolved|approved|success|enabled)$/i.test(status)) return 'success'; return 'neutral'; }

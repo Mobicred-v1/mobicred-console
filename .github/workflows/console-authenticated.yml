@@ -81,7 +81,15 @@ jobs:
       - name: Platform session preflight
         run: node tests/fixtures/session-preflight.cjs
       - name: Authenticated platform, partner and ingestion journeys
-        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/staff-console-smoke.cjs
+        run: NODE_PATH=/tmp/console-browser/node_modules node -r ./scripts/case-browser-observer.cjs scripts/staff-console-smoke.cjs
+      - name: Global ops administration and uncertain command journeys
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/ops-administration-smoke.cjs
+      - name: Small-screen operator controls
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/mobile-ops-shell.cjs
+      - name: Persistent navigation and permission/session regression
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/spa-navigation-smoke.cjs
+      - name: Sequential case refresh consistency
+        run: NODE_PATH=/tmp/console-browser/node_modules node scripts/case-refresh-smoke.cjs
       - name: Failure diagnostics
         if: failure()
         run: tail -n 80 /tmp/console-api.log /tmp/console-web.log /tmp/console-idp.log /tmp/console-owner.log || true
